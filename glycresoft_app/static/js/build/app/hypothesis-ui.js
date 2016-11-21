@@ -9,7 +9,7 @@ Application.prototype.renderHypothesisListAt = function(container) {
   });
   for (j = 0, len = ref.length; j < len; j++) {
     hypothesis = ref[j];
-    row = $("<div data-id=" + hypothesis.id + " data-uuid=" + hypothesis.uuid + " class='list-item clearfix'> <span class='handle'>" + i + ". " + (hypothesis.name.replace('_', ' ')) + "</span> <small class='right' style='display:inherit'> " + (hypothesis.hypothesis_type != null ? hypothesis.hypothesis_type : '-') + " <a class='remove-hypothesis mdi mdi-close'></a> </small> </div>");
+    row = $("<div data-id=" + hypothesis.id + " data-uuid=" + hypothesis.uuid + " class='list-item clearfix'> <span class='handle user-provided-name'>" + i + ". " + (hypothesis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + (hypothesis.hypothesis_type != null ? hypothesis.hypothesis_type : '-') + " <a class='remove-hypothesis mdi mdi-close'></a> </small> </div>");
     chunks.push(row);
     i += 1;
     row.click(function(event) {

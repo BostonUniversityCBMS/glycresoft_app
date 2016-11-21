@@ -43,6 +43,9 @@
         </div>
     </div>
     <div class='row'>
+        <div class='col s6'>
+            {{sequence_logo_plot}}
+        </div>
         <div class='col s3'>
             <h5>Fragment Matches</h5>
             {% for pair in match.solution_map|sort(attribute='fragment.series.name') %}

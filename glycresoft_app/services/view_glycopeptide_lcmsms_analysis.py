@@ -31,6 +31,7 @@ from glycan_profiling.plotting.summaries import (
 from glycan_profiling.output import GlycopeptideLCMSMSAnalysisCSVSerializer
 
 from glycan_profiling.plotting.plot_glycoforms import plot_glycoforms_svg
+from glycan_profiling.plotting.sequence_fragment_logo import glycopeptide_match_logo
 
 from glycan_profiling.plotting.entity_bar_chart import (
     AggregatedAbundanceArtist, BundledGlycanComposition)
@@ -342,9 +343,11 @@ def glycopeptide_detail(analysis_id, protein_id, glycopeptide_id):
     SmoothingChromatogramArtist([gp], ax=ax).draw(label_function=lambda *a, **k: "", legend=False)
 
     spectrum_plot = match.annotate(ax=figax(), pretty=True)
-    spectrum_plot.set_title("Annotated Scan\n\"%s\"" % (scan.id,), fontsize=18)
+    spectrum_plot.set_title("Annotated Scan\n\"%s\"\n" % (scan.id,), fontsize=18)
     spectrum_plot.set_ylabel(spectrum_plot.get_ylabel(), fontsize=16)
     spectrum_plot.set_xlabel(spectrum_plot.get_xlabel(), fontsize=16)
+
+    sequence_logo_plot = glycopeptide_match_logo(match, ax=figax())
 
     return render_template(
         "/view_glycopeptide_search/components/glycopeptide_detail.templ",
@@ -352,6 +355,7 @@ def glycopeptide_detail(analysis_id, protein_id, glycopeptide_id):
         match=match,
         chromatogram_plot=report.svg_plot(ax, bbox_inches='tight', height=3, width=7),
         spectrum_plot=report.svg_plot(spectrum_plot, bbox_inches='tight', height=3, width=10),
+        sequence_logo_plot=report.svg_plot(sequence_logo_plot, bbox_inches='tight', height=2, width=7),
     )
 
 

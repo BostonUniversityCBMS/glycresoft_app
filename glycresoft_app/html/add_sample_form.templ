@@ -68,13 +68,18 @@
                                            class='numeric-entry'>
                         </div>
                     </div>
-                    <div class="col s3 tooltipped" data-position='top' data-tooltip='A formula or name for the averagine used for MS1 scans'>
+                    <div class="col s5 tooltipped" data-position='top' data-tooltip='A formula or name for the averagine used for MS1 scans'>
                         <div class='input-field'>
                             <label for='ms1-averagine'>Averagine</label>
-                            <input type="text" id="ms1-averagine" name="ms1-averagine"
-                                   placeholder="Averagine Formula or Name"
-                                   value='glycan'
-                                   style='font-size: 1.3em;text-align: center;'>
+                            <select name='ms1-averagine' class='browser-default'>
+                                <option value='glycan' selected>Glycan</option>
+                                <option value='glycopeptide'>Glycopeptide</option>
+                                <option value='peptide'>Peptide</option>
+                                <option value='permethylated-glycan'>Permethylated Glycan</option>
+                            </select>
+                            <input type="text" id="ms1-averagine-custom" name="ms1-averagine-custom"
+                                   placeholder="Custom Formula"
+                                   style='font-size: 1em;text-align: center;'>
                         </div>
                     </div>
                 </div>
@@ -90,13 +95,18 @@
                                            class='numeric-entry'>
                         </div>
                     </div>
-                    <div class="col s3 tooltipped" data-position='top' data-tooltip='A formula or name for the averagine used for MSn scans'>
+                    <div class="col s5 tooltipped" data-position='top' data-tooltip='A formula or name for the averagine used for MSn scans'>
                         <div class='input-field'>
                             <label for='msn-averagine'>Averagine</label>
-                            <input type="text" id="msn-averagine" name="msn-averagine"
-                                   placeholder="Averagine Formula or Name"
-                                   value='glycan'
-                                   style='font-size: 1.3em;text-align: center;'>
+                            <select name='msn-averagine' class='browser-default'>
+                                <option value='glycan' selected>Glycan</option>
+                                <option value='glycopeptide'>Glycopeptide</option>
+                                <option value='peptide'>Peptide</option>
+                                <option value='permethylated-glycan'>Permethylated Glycan</option>
+                            </select>
+                            <input type="text" id="msn-averagine-custom" name="msn-averagine-custom"
+                                   placeholder="Custom Formula"
+                                   style='font-size: 1em;text-align: center;'>
                         </div>
                     </div>
                 </div>

@@ -6,7 +6,7 @@ Application::renderHypothesisListAt = (container)->
     for hypothesis in _.sortBy(_.values(@hypotheses), (o) -> o.id)
         row = $("
     <div data-id=#{hypothesis.id} data-uuid=#{hypothesis.uuid} class='list-item clearfix'>
-        <span class='handle'>#{i}. #{hypothesis.name.replace('_', ' ')}</span>
+        <span class='handle user-provided-name'>#{i}. #{hypothesis.name.replace(/_/g, ' ')}</span>
         <small class='right' style='display:inherit'>
             #{if hypothesis.hypothesis_type? then hypothesis.hypothesis_type else '-' }
             <a class='remove-hypothesis mdi mdi-close'></a>

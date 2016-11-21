@@ -85,7 +85,7 @@ class MonosaccharideInputWidgetGrid
 class ConstraintInputGrid
     template: """
     <div class="monosaccharide-constraints-row row">
-        <div class='input-field col s2'>
+        <div class='input-field col s4'>
             <label for='left_hand_side'>Name</label>
             <input class='monosaccharide-name' type='text' name='left_hand_side' placeholder='Name'>
         </div>
@@ -99,7 +99,7 @@ class ConstraintInputGrid
                 <option>&lt;=</option>
             </select>
         </div>
-        <div class='input-field col s2'>
+        <div class='input-field col s4'>
             <label for='right_hand_side'>Name/Value</label>
             <input class='monosaccharide-name' type='text' name='right_hand_side' placeholder='Name/Value'>
         </div>

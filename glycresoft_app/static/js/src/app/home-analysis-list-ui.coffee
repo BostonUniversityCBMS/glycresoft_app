@@ -10,7 +10,7 @@ Application::renderAnalyses = (container)->
         analysis.name = if analysis.name != '' then analysis.name else "Analysis:#{analysis.uuid}"
         row = $("
     <div data-id=#{analysis.id} class='list-item clearfix' data-uuid='#{analysis.uuid}'>
-        <span class='handle'>#{analysis.id}. #{analysis.name.replace('_', ' ')}</span>
+        <span class='handle user-provided-name'>#{analysis.id}. #{analysis.name.replace(/_/g, ' ')}</span>
         <small class='right' style='display:inherit'>
             #{analysisTypeDisplayMap[analysis.analysis_type]}
             <a class='remove-analysis mdi-content-clear'></a>

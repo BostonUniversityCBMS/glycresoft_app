@@ -40,8 +40,21 @@ def post_add_sample():
     start_time = float(request.values['start-time'])
     end_time = float(request.values['end-time'])
 
-    averagine = request.values['ms1-averagine']
-    msn_averagine = request.values['msn-averagine']
+    prefab_averagine = request.values['ms1-averagine']
+    prefab_msn_averagine = request.values['msn-averagine']
+
+    custom_ms1_averagine_formula = request.values['ms1-averagine-custom']
+    custom_msn_averagine_formula = request.values['msn-averagine-custom']
+
+    if custom_ms1_averagine_formula:
+        averagine = custom_ms1_averagine_formula
+    else:
+        averagine = prefab_averagine
+
+    if custom_msn_averagine_formula:
+        msn_averagine = custom_msn_averagine_formula
+    else:
+        msn_averagine = prefab_msn_averagine
 
     ms1_score_threshold = float(request.values['ms1-minimum-isotopic-score'])
     msn_score_threshold = float(request.values['msn-minimum-isotopic-score'])

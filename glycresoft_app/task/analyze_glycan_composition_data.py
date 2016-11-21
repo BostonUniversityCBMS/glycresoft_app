@@ -35,6 +35,7 @@ def get_by_name_or_id(session, model_type, name_or_id):
 def analyze_glycan_composition(database_connection, sample_identifier, hypothesis_identifier,
                                analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                                mass_error_tolerance=1e-5, scoring_model=None, network_sharing=None,
+                               minimum_mass=500.,
                                channel=None, **kwargs):
     if scoring_model is None:
         scoring_model = GeneralScorer
@@ -81,7 +82,8 @@ def analyze_glycan_composition(database_connection, sample_identifier, hypothesi
             database_connection._original_connection, hypothesis.id,
             sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
             grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
-            analysis_name=analysis_name, network_sharing=network_sharing)
+            analysis_name=analysis_name, network_sharing=network_sharing,
+            minimum_mass=minimum_mass)
         proc = analyzer.start()
         analysis = analyzer.analysis
         channel.send(Message(json_serializer.handle_analysis(analysis), 'new-analysis'))
@@ -95,10 +97,12 @@ class AnalyzeGlycanCompositionTask(Task):
     def __init__(self, database_connection, sample_identifier, hypothesis_identifier,
                  analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                  mass_error_tolerance=1e-5, scoring_model=None, network_sharing=None,
+                 minimum_mass=500.,
                  callback=lambda: 0, **kwargs):
         args = (database_connection, sample_identifier, hypothesis_identifier,
                 analysis_name, adducts, grouping_error_tolerance,
-                mass_error_tolerance, scoring_model, network_sharing)
+                mass_error_tolerance, scoring_model, network_sharing,
+                minimum_mass)
         if analysis_name is None:
             name_part = kwargs.pop("job_name_part", self.count)
             self.count += 1

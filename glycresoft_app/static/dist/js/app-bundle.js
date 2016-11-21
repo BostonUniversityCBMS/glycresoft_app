@@ -496,7 +496,7 @@ MonosaccharideInputWidgetGrid = (function() {
 })();
 
 ConstraintInputGrid = (function() {
-  ConstraintInputGrid.prototype.template = "<div class=\"monosaccharide-constraints-row row\">\n    <div class='input-field col s2'>\n        <label for='left_hand_side'>Name</label>\n        <input class='monosaccharide-name' type='text' name='left_hand_side' placeholder='Name'>\n    </div>\n    <div class='input-field col s1' style='padding-left: 2px;padding-right: 2px;'>\n        <select class='browser-default' name='operator'>\n            <option>=</option>\n            <option>!=</option>\n            <option>&gt;</option>\n            <option>&lt;</option>\n            <option>&gt;=</option>\n            <option>&lt;=</option>\n        </select>\n    </div>\n    <div class='input-field col s2'>\n        <label for='right_hand_side'>Name/Value</label>\n        <input class='monosaccharide-name' type='text' name='right_hand_side' placeholder='Name/Value'>\n    </div>\n</div>";
+  ConstraintInputGrid.prototype.template = "<div class=\"monosaccharide-constraints-row row\">\n    <div class='input-field col s4'>\n        <label for='left_hand_side'>Name</label>\n        <input class='monosaccharide-name' type='text' name='left_hand_side' placeholder='Name'>\n    </div>\n    <div class='input-field col s1' style='padding-left: 2px;padding-right: 2px;'>\n        <select class='browser-default' name='operator'>\n            <option>=</option>\n            <option>!=</option>\n            <option>&gt;</option>\n            <option>&lt;</option>\n            <option>&gt;=</option>\n            <option>&lt;=</option>\n        </select>\n    </div>\n    <div class='input-field col s4'>\n        <label for='right_hand_side'>Name/Value</label>\n        <input class='monosaccharide-name' type='text' name='right_hand_side' placeholder='Name/Value'>\n    </div>\n</div>";
 
   function ConstraintInputGrid(container, monosaccharideGrid) {
     this.counter = 0;
@@ -601,7 +601,7 @@ Application.prototype.renderAnalyses = function(container) {
     for (i = 0, len = ref.length; i < len; i++) {
       analysis = ref[i];
       analysis.name = analysis.name !== '' ? analysis.name : "Analysis:" + analysis.uuid;
-      row = $("<div data-id=" + analysis.id + " class='list-item clearfix' data-uuid='" + analysis.uuid + "'> <span class='handle'>" + analysis.id + ". " + (analysis.name.replace('_', ' ')) + "</span> <small class='right' style='display:inherit'> " + analysisTypeDisplayMap[analysis.analysis_type] + " <a class='remove-analysis mdi-content-clear'></a> </small> </div>");
+      row = $("<div data-id=" + analysis.id + " class='list-item clearfix' data-uuid='" + analysis.uuid + "'> <span class='handle user-provided-name'>" + analysis.id + ". " + (analysis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + analysisTypeDisplayMap[analysis.analysis_type] + " <a class='remove-analysis mdi-content-clear'></a> </small> </div>");
       chunks.push(row);
       self = this;
       row.click(function(event) {
@@ -648,7 +648,7 @@ Application.prototype.renderHypothesisListAt = function(container) {
   });
   for (j = 0, len = ref.length; j < len; j++) {
     hypothesis = ref[j];
-    row = $("<div data-id=" + hypothesis.id + " data-uuid=" + hypothesis.uuid + " class='list-item clearfix'> <span class='handle'>" + i + ". " + (hypothesis.name.replace('_', ' ')) + "</span> <small class='right' style='display:inherit'> " + (hypothesis.hypothesis_type != null ? hypothesis.hypothesis_type : '-') + " <a class='remove-hypothesis mdi mdi-close'></a> </small> </div>");
+    row = $("<div data-id=" + hypothesis.id + " data-uuid=" + hypothesis.uuid + " class='list-item clearfix'> <span class='handle user-provided-name'>" + i + ". " + (hypothesis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + (hypothesis.hypothesis_type != null ? hypothesis.hypothesis_type : '-') + " <a class='remove-hypothesis mdi mdi-close'></a> </small> </div>");
     chunks.push(row);
     i += 1;
     row.click(function(event) {
@@ -950,7 +950,7 @@ Application.prototype.renderSampleListAt = function(container) {
     results = [];
     for (i = 0, len = ref.length; i < len; i++) {
       sample = ref[i];
-      row = $("<div data-name=" + sample.name + " class='list-item clearfix' data-uuid='" + sample.uuid + "'> <span class='handle'>" + (sample.name.replace('_', ' ')) + "</span> <small class='right' style='display:inherit'> " + sample.sample_type + " <a class='remove-sample mdi mdi-close'></a> </small> </div>");
+      row = $("<div data-name=" + sample.name + " class='list-item clearfix' data-uuid='" + sample.uuid + "'> <span class='handle user-provided-name'>" + (sample.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + sample.sample_type + " <a class='remove-sample mdi mdi-close'></a> </small> </div>");
       chunks.push(row);
       results.push(row.find(".remove-sample").click(function(event) {
         var handle;

@@ -32,10 +32,10 @@ def get_by_name_or_id(session, model_type, name_or_id):
 
 def analyze_glycopeptide_sequences(database_connection, sample_identifier, hypothesis_identifier,
                                    analysis_name, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
-                                   msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, scoring_model=None,
+                                   msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                                    channel=None, **kwargs):
-    if scoring_model is None:
-        scoring_model = chromatogram_solution.ChromatogramScorer(
+    if peak_shape_scoring_model is None:
+        peak_shape_scoring_model = chromatogram_solution.ChromatogramScorer(
             shape_fitter_type=shape_fitter.AdaptiveMultimodalChromatogramShapeFitter)
     database_connection = DatabaseBoundOperation(database_connection)
     try:
@@ -60,7 +60,7 @@ def analyze_glycopeptide_sequences(database_connection, sample_identifier, hypot
             database_connection._original_connection, hypothesis.id, sample_run.id,
             analysis_name, grouping_error_tolerance=grouping_error_tolerance, mass_error_tolerance=mass_error_tolerance,
             msn_mass_error_tolerance=msn_mass_error_tolerance, psm_fdr_threshold=psm_fdr_threshold,
-            scoring_model=scoring_model)
+            peak_shape_scoring_model=peak_shape_scoring_model)
         proc = analyzer.start()
         analysis = analyzer.analysis
         channel.send(Message(json_serializer.handle_analysis(analysis), 'new-analysis'))
@@ -73,11 +73,11 @@ class AnalyzeGlycopeptideSequenceTask(Task):
 
     def __init__(self, database_connection, sample_identifier, hypothesis_identifier,
                  analysis_name, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
-                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, scoring_model=None,
+                 msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
                  callback=lambda: 0, **kwargs):
         args = (database_connection, sample_identifier, hypothesis_identifier,
                 analysis_name, grouping_error_tolerance, mass_error_tolerance,
-                msn_mass_error_tolerance, psm_fdr_threshold, scoring_model)
+                msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model)
         if analysis_name is None:
             name_part = kwargs.pop("job_name_part", self.count)
             self.count += 1

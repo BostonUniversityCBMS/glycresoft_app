@@ -4,7 +4,7 @@ Application::renderSampleListAt = (container)->
     for sample in _.sortBy(_.values(@samples), (o) -> o.id)
         row = $("
     <div data-name=#{sample.name} class='list-item clearfix' data-uuid='#{sample.uuid}'>
-        <span class='handle'>#{sample.name.replace('_', ' ')}</span>
+        <span class='handle user-provided-name'>#{sample.name.replace(/_/g, ' ')}</span>
         <small class='right' style='display:inherit'>
             #{sample.sample_type}
             <a class='remove-sample mdi mdi-close'></a>

@@ -15577,6 +15577,9 @@ code.sequence-text {
     line-height: 18px;
 }
 
+.user-provided-name {
+    word-break: break-all;
+}
 
 .protein-name {
     padding-left: 20px;
