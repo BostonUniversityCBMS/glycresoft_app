@@ -1,0 +1,49 @@
+<div class='settings-container row'>
+    <div id="settings-menu" class="col s12">
+        <h4 class='section-title'>Settings and Internal Options</h4>
+        <div class='row'>
+            
+        </div>
+        <h5 class='section-title'>Internal Options</h5>
+        <div class='row'>
+            <div class='col s4 input-field'>
+                <button id='view-server-log-btn' class='btn wave-effect'>
+                    View Server Log
+                </button>
+            </div>
+        </div>
+        {% if has_native_client %}
+        <h5 class='section-title'>Project File Management</h5>
+        <div class='row'>
+            <div class='col s4 input-field'>
+                <button id='view-project-folder-btn' class='btn wave-effect' data-path="{{project.escaped_base_path}}">
+                    View Project Folder
+                </button>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+    <script>
+(function(){
+    materialRefresh()
+    var sectionHandle = $("#settings-menu")
+    sectionHandle.find("#view-server-log-btn").click(function() {
+        $.get("/server_log").success(function(logText){
+            GlycReSoft.displayMessageModal(logText)
+        }).error(function(err){
+            alert("An error occurred during retrieval, " + err)
+        })
+    })
+
+    if(GlycReSoft.isNativeClient()) {
+        sectionHandle.find("#view-project-folder-btn").click(function(e){
+            let handle = $(this)
+            let targetPath = handle.data("path")
+            console.log(targetPath)
+            console.log(this)
+            openDirectoryExternal(targetPath)
+        })
+    }
+})()
+    </script>
+</div>

@@ -1,0 +1,72 @@
+.modification-listing {
+    height: 300px;
+    overflow-y: auto;
+}
+
+.modification-choices-container {
+
+}
+
+.modification-listing-container {
+
+}
+
+.modification-listing-header {
+    margin-bottom: 1px;
+    border-bottom: 1px solid grey;
+}
+
+.modification-choices {
+    border: 1px solid lightgrey;
+    border-radius: 3px;
+}
+
+.constant-modification-choices {
+    height: 130px;
+    overflow-y: auto;
+}
+
+.variable-modification-choices {
+    height: 130px;
+    overflow-y: auto;
+}
+
+.modification-rule-entry {
+    cursor: pointer;
+    padding: 3px;
+    margin-bottom: 1px !important;
+}
+
+.modification-rule-entry.selected {
+    background-color: rgba(142, 102, 252, 0.75);
+}
+
+.modification-rule-entry:hover {
+    background-color: rgba(222, 222, 222, 0.5)
+}
+
+.modification-rule-entry.selected:hover {
+    background-color: rgba(142, 152, 252, 0.75);
+}
+
+.modification-choice-controls a.btn {
+    margin: 1px;
+    margin-bottom: 15px;
+    font-family: Inconsolata;
+    width: 115px;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+}
+
+.modification-choice-controls {
+    margin-top: 35px;
+}
+
+.choice-list-header {
+    text-align: center;
+    font-size: 1em;
+}
+
+.modification-creation-container {
+    display: none;
+}

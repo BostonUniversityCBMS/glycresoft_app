@@ -1,29 +1,22 @@
-<h4>Glycan Composition Search</h4>
+<h4 class='section-title'>Glycan Composition Search</h4>
 <div class='row'>
     <form id='search-form' action="/search_glycan_composition/run_search" class="col s12" method="post" accept-charset="utf-8" enctype="multipart/form-data">
         <div class='col s6'>
-        {% set samples = manager.samples().all() %}
-        {% if samples|length > 0 %}
-            <label for="samples">Select one or more samples</label>
-            <select name="samples" class='browser-default' multiple style='height:150px;'>
-                {% for sample in samples %}
-                    <option value="{{sample.id}}">{{sample.name}}</option>
-                {% endfor %}
-            </select>
-        {% endif %}
+            {% include "components/sample_selection.templ" %}
         </div>
         <div class='row'>
             <div class='input-field col s6'>    
                 <label for="hypothesis_choice">Choose a Hypothesis</label>
                 <br>
                 <select id="hypothesis_choice" name="hypothesis_choice" class='browser-default'>
-                    {% for hypothesis in manager.glycan_hypotheses() %}
-                        <option value="{{hypothesis.id}}">{{hypothesis.name}}</option>
+                    {% for hypothesis in manager.glycan_hypotheses(user) %}
+                        <option value="{{hypothesis.uuid}}">{{hypothesis.name}}</option>
                     {% endfor %}
                 </select>
             </div>
         </div>
         <div class='row'>
+            <br>
             <div class='col s5'>
                 <div class='row'>
                     <div class='input-field col s4'>
@@ -52,7 +45,7 @@
                 </div>
             </div>  
             <div class='mass-shift-input-table col s5'>
-                
+                <div class='section-title' style='margin-left: 25%;'>Variable Adducts</div><br>
             </div>
         </div>
         <button class='btn'>Submit</button>

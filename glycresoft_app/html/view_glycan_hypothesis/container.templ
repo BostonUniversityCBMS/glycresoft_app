@@ -1,13 +1,18 @@
-<div class='row'>
-    <div class='col s6'>
-        <h4>{{hypothesis.name}}</h4>
-        <span>ID: {{hypothesis.id}}</span>
+<div id='glycan-composition-hypothesis-container'>
+    <div class='row'>
+        <div class='col s6'>
+            <h5 class='section-title'>{{hypothesis.name}}</h5>
+            <span>ID: {{hypothesis.uuid}}:{{hypothesis.id}}</span>
+            <a class='mdi mdi-content-save mdi-36px tooltipped' id='save-text-btn' style='cursor: pointer;'
+               data-tooltip='Export Hypothesis as Text' data-position='bottom'>
+            </a>
+        </div>
+        {% include "components/mass_search.templ" %}
     </div>
-    {% include "components/mass_search.templ" %}
-</div>
-<div id='composition-table-container'>
+    <div id='composition-table-container'>
 
+    </div>
+    <script>
+    controller = new GlycanCompositionHypothesisController("{{hypothesis.uuid}}")
+    </script>    
 </div>
-<script>
-viewGlycanCompositionHypothesis({{hypothesis.id}})
-</script>

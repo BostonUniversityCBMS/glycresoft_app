@@ -1,29 +1,98 @@
-var MzIdentMLProteinSelector, getProteinName, getProteinNamesFromMzIdentML, identifyProteomicsFormat;
+var MzIdentMLProteinSelector, ProteomicsFileFormats, getProteinName, getProteinNamesFromMzIdentML, identifyProteomicsFormat;
 
 identifyProteomicsFormat = function(file, callback) {
-  var isMzidentML, reader;
+  var isMzML, isMzidentML, reader;
   isMzidentML = function(lines) {
-    var j, len, line;
+    var d, hasVersion, hit, i, j, len, line, match, tag, version;
+    i = 0;
+    hit = false;
+    tag = [];
     for (j = 0, len = lines.length; j < len; j++) {
       line = lines[j];
       if (/mzIdentML/.test(line)) {
-        return true;
+        hit = true;
+        break;
       }
+      i += 1;
+    }
+    if (hit) {
+      console.log(hit);
+      tag.push(line[i]);
+      tag.push(lines[i + 1]);
+      tag.push(lines[i + 2]);
+      tag = tag.join(" ");
+      hasVersion = /version="([0-9\.]+)"/.test(tag);
+      if (hasVersion) {
+        match = /version="([0-9\.]+)"/.exec(tag);
+        version = match[1];
+        version = [
+          (function() {
+            var k, len1, ref, results;
+            ref = version.split('.');
+            results = [];
+            for (k = 0, len1 = ref.length; k < len1; k++) {
+              d = ref[k];
+              results.push(parseInt(d));
+            }
+            return results;
+          })()
+        ];
+        return {
+          "version": version,
+          "format": ProteomicsFileFormats.mzIdentML
+        };
+      } else {
+        return {
+          "format": ProteomicsFileFormats.mzIdentML
+        };
+      }
+    }
+    return false;
+  };
+  isMzML = function(lines) {
+    var hit, i, j, len, line, tag;
+    i = 0;
+    hit = false;
+    tag = [];
+    for (j = 0, len = lines.length; j < len; j++) {
+      line = lines[j];
+      if (/(mzML)|(indexedmzML)/.test(line)) {
+        hit = true;
+        break;
+      }
+      i += 1;
+    }
+    if (hit) {
+      return {
+        "format": ProteomicsFileFormats.error
+      };
     }
     return false;
   };
   reader = new FileReader();
   reader.onload = function() {
-    var lines, proteomicsFileType;
+    var lines, proteomicsFileType, test;
     lines = this.result.split("\n");
-    console.log(lines);
-    proteomicsFileType = "fasta";
-    if (isMzidentML(lines)) {
-      proteomicsFileType = "mzIdentML";
+    proteomicsFileType = {
+      "format": ProteomicsFileFormats.fasta
+    };
+    test = isMzML(lines);
+    if (test) {
+      proteomicsFileType = test;
+    }
+    test = isMzidentML(lines);
+    if (test) {
+      proteomicsFileType = test;
     }
     return callback(proteomicsFileType);
   };
   return reader.readAsText(file.slice(0, 100));
+};
+
+ProteomicsFileFormats = {
+  mzIdentML: "mzIdentML",
+  fasta: "fasta",
+  error: "error"
 };
 
 getProteinName = function(sequence) {
@@ -85,7 +154,6 @@ getProteinNamesFromMzIdentML = function(file, callback, nameCallback) {
             nameCallback(name);
           }
         } else if (/<\/SequenceCollection>/i.test(line)) {
-          console.log("Done!", line);
           isDone = true;
         }
         lastLine = "";
@@ -116,6 +184,10 @@ MzIdentMLProteinSelector = (function() {
     this.container = $(listContainer);
     this.initializeContainer();
   }
+
+  MzIdentMLProteinSelector.prototype.clearContainer = function() {
+    return this.container.html("");
+  };
 
   MzIdentMLProteinSelector.prototype.initializeContainer = function() {
     var self, template;

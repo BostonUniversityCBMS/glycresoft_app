@@ -1,0 +1,48 @@
+<div class='export-container row'>
+    <form id="export-form" action='/view_glycan_lcms_analysis/{{analysis_id}}/export'
+          method="post" accept-charset="utf-8" class="col s12">
+        <h4>
+            Export Identifications As Text Files:
+        </h4>
+        <div style="margin-left: 20px;">
+            {% for option in export_type_list %}
+                <p style='margin-bottom: 10px;'>
+                    <input type="checkbox" id="{{option}}" name="{{option}}">
+                    <label for="{{option}}">{{option}}</label>
+                </p>
+            {% endfor %}
+        </div>
+        <br>
+        <input type='submit' class='btn'>
+        </input>
+    </form>
+    <script>
+materialRefresh()
+ajaxForm("#export-form", function (payload) {
+    console.log(payload)
+    var archiveName = "{{name}}"
+    payload.download_name = archiveName
+
+    for(var i = 0; i < payload.filenames.length; i++){
+        var name = payload.filenames[i]
+        console.log(name)
+    }
+    if(GlycReSoft.isNativeClient()){
+        nativeClientMultiFileDownloadDirectory(function(directory){
+            $.post("/internal/move_files", {
+                filenames: payload.filenames,
+                destination: directory
+            }).success(function(){
+                GlycReSoft.closeMessageModal()
+                openDirectoryExternal(directory)
+            })
+        })
+    } else {
+        $.post("/internal/multiple_file_download/", payload).success(function(response){
+            GlycReSoft.downloadFile(response.filename)
+            GlycReSoft.closeMessageModal()
+        })
+    }
+})
+    </script>
+</div>

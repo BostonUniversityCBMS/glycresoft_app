@@ -25,19 +25,35 @@ ActionBook =
     viewHypothesis:
         contentURLTemplate: "/view_hypothesis/{uuid}"
         method: "post"
+    viewSample:
+        contentURLTemplate: "/view_sample/{sample_id}"
+        method: 'get'
+
 
 makeAPIGet = (url) -> (callback) -> $.get(url).success(callback)
 makeParameterizedAPIGet = (url) -> (params, callback) -> $.get(url.format(params)).success(callback)
 
-Hypothesis =
+HypothesisAPI =
     all: makeAPIGet("/api/hypotheses")
     get: makeParameterizedAPIGet("/api/hypotheses/{}")
 
-Sample = 
+SampleAPI = 
     all: makeAPIGet("/api/samples")
 
-Analysis = 
+AnalysisAPI = 
     all: makeAPIGet("/api/analyses")
 
-Task =
+TaskAPI =
     all: makeAPIGet("/api/tasks")
+
+
+ErrorLogURL = "/log_js_error"
+
+
+User =
+    get: makeAPIGet("/users/current_user")
+    set: (user_id, callback) -> $.post("/users/login", {"user_id": user_id}).success(callback)
+
+
+MassShiftAPI = 
+    all: makeAPIGet("/api/mass-shift")

@@ -1,7 +1,7 @@
 import os
 from click import Abort
 
-from glycresoft_app.utils import json_serializer
+from glycresoft_app.project import analysis as project_analysis
 from .task_process import Task, Message
 
 from glycan_profiling.serialize import (
@@ -9,13 +9,16 @@ from glycan_profiling.serialize import (
     SampleRun)
 
 from glycan_profiling.profiler import (
-    GlycanChromatogramAnalyzer)
+    MzMLGlycanChromatogramAnalyzer)
 
 from glycan_profiling.models import GeneralScorer
 
 from glycan_profiling.cli.validators import (
     validate_analysis_name,
     validate_adduct)
+
+
+from ms_deisotope.output.mzml import ProcessedMzMLDeserializer
 
 
 def get_by_name_or_id(session, model_type, name_or_id):
@@ -32,8 +35,8 @@ def get_by_name_or_id(session, model_type, name_or_id):
         return inst
 
 
-def analyze_glycan_composition(database_connection, sample_identifier, hypothesis_identifier,
-                               analysis_name, adducts, grouping_error_tolerance=1.5e-5,
+def analyze_glycan_composition(database_connection, sample_path, hypothesis_identifier,
+                               output_path, analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                                mass_error_tolerance=1e-5, scoring_model=None, network_sharing=None,
                                minimum_mass=500.,
                                channel=None, **kwargs):
@@ -45,16 +48,17 @@ def analyze_glycan_composition(database_connection, sample_identifier, hypothesi
 
     database_connection = DatabaseBoundOperation(database_connection)
 
-    try:
-        sample_run = get_by_name_or_id(
-            database_connection, SampleRun, sample_identifier)
-    except:
-        channel.send(Message("Could not locate sample %r" % sample_identifier, "error"))
+    if not os.path.exists(sample_path):
+        channel.send(Message("Could not locate sample %r" % sample_path, "error"))
         return
+
+    reader = ProcessedMzMLDeserializer(sample_path, use_index=False)
+    sample_run = reader.sample_run
+
     try:
         hypothesis = get_by_name_or_id(
             database_connection, GlycanHypothesis, hypothesis_identifier)
-    except:
+    except Exception:
         channel.send(Message("Could not locate hypothesis %r" % hypothesis_identifier, "error"))
         return
 
@@ -67,9 +71,7 @@ def analyze_glycan_composition(database_connection, sample_identifier, hypothesi
         for adduct, multiplicity in adducts:
             adduct_out.append(validate_adduct(adduct, multiplicity))
         expanded = []
-        for adduct, mult in adduct_out:
-            for i in range(1, mult + 1):
-                expanded.append(adduct * i)
+        expanded = MzMLGlycanChromatogramAnalyzer.expand_adducts(dict(adduct_out))
         adducts = expanded
     except Abort:
         channel.send(Message.traceback())
@@ -78,29 +80,38 @@ def analyze_glycan_composition(database_connection, sample_identifier, hypothesi
     adducts = expanded
 
     try:
-        analyzer = GlycanChromatogramAnalyzer(
+        analyzer = MzMLGlycanChromatogramAnalyzer(
             database_connection._original_connection, hypothesis.id,
-            sample_run.id, adducts=adducts, mass_error_tolerance=mass_error_tolerance,
+            sample_path=sample_path, output_path=output_path, adducts=adducts,
+            mass_error_tolerance=mass_error_tolerance,
             grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
             analysis_name=analysis_name, network_sharing=network_sharing,
             minimum_mass=minimum_mass)
-        proc = analyzer.start()
+        analyzer.start()
         analysis = analyzer.analysis
-        channel.send(Message(json_serializer.handle_analysis(analysis), 'new-analysis'))
+        record = project_analysis.AnalysisRecord(
+            name=analysis.name, id=analysis.id, uuid=analysis.uuid, path=output_path,
+            analysis_type=analysis.analysis_type,
+            hypothesis_uuid=analysis.hypothesis.uuid,
+            hypothesis_name=analysis.hypothesis.name,
+            sample_name=analysis.parameters['sample_name'],
+            user_id=channel.user.id)
+        channel.send(Message(record.to_json(), 'new-analysis'))
     except:
         channel.send(Message.traceback())
+        channel.abort("An error occurred during analysis.")
 
 
 class AnalyzeGlycanCompositionTask(Task):
     count = 0
 
-    def __init__(self, database_connection, sample_identifier, hypothesis_identifier,
-                 analysis_name, adducts, grouping_error_tolerance=1.5e-5,
+    def __init__(self, database_connection, sample_path, hypothesis_identifier,
+                 output_path, analysis_name, adducts, grouping_error_tolerance=1.5e-5,
                  mass_error_tolerance=1e-5, scoring_model=None, network_sharing=None,
                  minimum_mass=500.,
                  callback=lambda: 0, **kwargs):
-        args = (database_connection, sample_identifier, hypothesis_identifier,
-                analysis_name, adducts, grouping_error_tolerance,
+        args = (database_connection, sample_path, hypothesis_identifier,
+                output_path, analysis_name, adducts, grouping_error_tolerance,
                 mass_error_tolerance, scoring_model, network_sharing,
                 minimum_mass)
         if analysis_name is None:

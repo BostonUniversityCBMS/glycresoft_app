@@ -19186,7 +19186,6 @@ return jQuery;
     }*/
 
     //Force Browser loading behavior
-    console.log(exports, this)
     exports.EventEmitter = EventEmitter;
 }.call(this));
 

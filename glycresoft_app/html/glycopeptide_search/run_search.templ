@@ -1,24 +1,16 @@
-<h4>Match Hypothesis Against Tandem Samples</h4>
+<h4 class='section-title'>Match Hypothesis Against Tandem Samples</h4>
 <div class='row'>
     <form id='match-sample-form' action="/search_glycopeptide_sequences/run_search" class="col s12" method="post" accept-charset="utf-8" enctype="multipart/form-data">
         <div class='col s6'>
-        {% set samples = manager.samples().all() %}
-        {% if samples|length > 0 %}
-            <label for="samples">Select one or more samples</label>
-            <select name="samples" class='browser-default' multiple style='height:150px;'>
-                {% for sample in manager.samples() %}
-                    <option value="{{sample.id}}">{{sample.name}}</option>
-                {% endfor %}
-            </select>
-        {% endif %}
+            {% include "components/sample_selection.templ" %}
         </div>
         <div class='row'>
             <div class='input-field col s6'>    
                 <label for="hypothesis_choice">Choose a Hypothesis</label>
                 <br>
                 <select id="hypothesis_choice" name="hypothesis_choice" class='browser-default'>
-                    {% for hypothesis in manager.glycopeptide_hypotheses() %}
-                        <option value="{{hypothesis.id}}">{{hypothesis.name}}</option>
+                    {% for hypothesis in manager.glycopeptide_hypotheses(user) %}
+                        <option value="{{hypothesis.uuid}}">{{hypothesis.name}}</option>
                     {% endfor %}
                 </select>
             </div>
@@ -50,6 +42,11 @@
                 <label for='q-value-threshold'><code>q</code>-Value Threshold</label>
                 <input class='numeric-entry' type='number' value='0.05' id='q-value-threshold'
                        name='q-value-threshold' step='0.01'>
+            </div>
+            <div class='input-field col s2'>
+                <label for='q-value-threshold'>Minimum Oxonium Threhsold</label>
+                <input class='numeric-entry' type='number' value='0.05' id='minimum-oxonium-threshold'
+                       name='minimum-oxonium-threshold' step='0.01'>
             </div>
         </div>
         <button class='btn'>Submit</button>

@@ -1,0 +1,24 @@
+{%- extends "layout.templ" %}
+
+{% block body %}
+    <br>
+    <div class='row'>
+        <div class='col s4 offset-s4'>
+            <h5>
+                Please Set User Identity
+            </h5>
+            <span>
+                User identities are not meant for security purposes, and are only to isolate
+                multiple users' information from each other.
+            </span>
+        </div>
+    </div>
+    <form class='row' action="/login" method='post'>
+        <div class="input-field col s4 offset-s4">
+            <label for='user-identity'>User Identity</label>
+            <input type="text" name="user-identity" id='user-identity'>
+
+            <input class='btn' type="submit">
+        </div>
+    </div>
+{% endblock %}

@@ -1,5 +1,5 @@
 <div class='row'>
-    <h4>Glycopeptide Search Space Building</h4>
+    <h4 class='section-title'>Glycopeptide Search Space Building</h4>
 </div>
 <div class='row'>
     <form  id='glycopeptide-hypothesis-form' action="glycopeptide_search_space" method="post" class="col s12" accept-charset="utf-8" enctype="multipart/form-data">
@@ -7,42 +7,30 @@
             <div class="input-field col s8">
                 <label for="hypothesis_name">Hypothesis Name</label>
                 <br>
-                <input id='hypothesis_name' name="hypothesis_name" type="text" class="validate">
+                <input id='hypothesis_name' name="hypothesis_name" type="text" class="validate" required>
             </div>
         </div>
         <div class='row'>
-            <div class='col s8'>
-                <div class="file-field input-field">
+            <div class='col s6'>
+                <div id='protein-list-file-container' class="file-field input-field">
                     <h6>Protein List</h6>
                     <div class="btn">
-                        <span>Select File...</span>
+                        <span>Select File</span>
                         <input name='protein-list-file' id='protein-list-file' type="file"/>
                     </div>
-                    <input class="file-path validate" type="text" style="width: 60%;padding-left:5px;"/>
+                    <input class="file-path validate" type="text" style="width:70%;padding-left:5px;"/>
                     <input type='hidden' name='proteomics-file-type' id="proteomics-file-type" />
                 </div>
             </div>
-            <small class='col s4' id='protein-list-file-help'>
+            <span class='col s5' id='protein-list-file-help'>
             A list of protein sequences to digest and glycosylate <em>in-silico</em>, provided in Fasta format or mzIdentML. 
-            </small>
+            </span>
         </div>
         <div id='mzid-protein-list-container'>
         </div>
+        <div id='modification-selection-editor-container' class="row">
+        </div>
         <div class='row'>
-            <div class='col s4' id='constant-modifications-container'>
-                <h6>Constant Modifications</h6>
-            {% with select_name='constant_modifications' %}
-                {% include 'components/modification_selection.templ' %}        
-            {% endwith %}
-            </div>
-            <div class='col s4' id='variable-modifications-container'>
-                <h6>Variable Modifications</h6>
-            {% with select_name='variable_modifications' %}
-                {% include 'components/modification_selection.templ' %}     
-            {% endwith %}
-                <br>
-                <span class='message'></span>
-            </div>
             <div class='col s4' id='enzyme-container'>
                 <h6>Enzymatic Digest</h6>
             {% with select_name='enzyme' %}
@@ -53,17 +41,53 @@
                    name='missed_cleavages' value="2"/>
             <span class='message'></span>
             </div>
+            <div class='col s2'>
+                
+            </div>
+            <div class='col s6'>
+                <div>
+                    <h6>Glycan Definitions</h6>
+                </div>
+                <small>
+                    List of glycan structures/compositions to attach to each protein.
+                </small>
+                <div class='input-field'>
+                    <h6>
+                        Select a Glycan Hypothesis or Sample Analysis
+                    </h6>
+                    <select id="glycan-database-source" name="glycan-database-source" class='browser-default'>
+                        <option selected="true"></option>
+                        <optgroup label="Glycan Hypotheses">
+                        {% for hypothesis in manager.glycan_hypotheses(user) %}
+                            <option value="Hypothesis,{{hypothesis.uuid}}">{{hypothesis.name}}</option>
+                        {% endfor %}
+                        </optgroup>
+                    </select>
+                </div>
+                <div>Or</div>
+                <div class="file-field input-field">
+                    <h6>
+                        Text File of Glycan Structures or Compositions
+                    </h6>
+                    <div class="btn">
+                        <span>Select File...</span>
+                        <input name='glycan-definition-file' id='glycan-definition-file' type="file" />
+                    </div>
+                    <input class="file-path validate" type="text" style="width: 67%;padding-left:5px;"/>
+                    <br>
+                </div>
+            </div>
         </div>
-        <div class='row' style='margin-bottom:0px;'>
+        {# <div class='row' style='margin-bottom:0px;'>
             <div class='col s8'>
                 <h6>Glycan Definitions</h6>
             </div>
             <small class='col s4' id='sitelist-file-help'>
                 List of glycan structures/compositions to attach to each protein.
             </small>                
-        </div>
+        </div> #}
         <div class='row' style='margin-bottom:0px;'>
-            <div class='col s6'>
+            {# <div class='col s6'>
                 <div class="file-field input-field">
                     <h6>
                         Text File of Glycan Structures or Compositions
@@ -78,8 +102,8 @@
             </div>
             <div class='col s1'>
                 <br><br>Or
-            </div>
-            <div class='col s4'>
+            </div> #}
+            {# <div class='col s4'>
                 <div class='input-field'>
                     <h6>
                         Select a Glycan Hypothesis or Sample Analysis
@@ -87,26 +111,13 @@
                     <select id="glycan-database-source" name="glycan-database-source" class='browser-default'>
                         <option selected="true"></option>
                         <optgroup label="Glycan Hypotheses">
-                        {% for hypothesis in manager.glycan_hypotheses() %}
-                            <option value="Hypothesis,{{hypothesis.id}}">{{hypothesis.name}}</option>
-                        {% endfor %}
-                        </optgroup>
-                        <optgroup label="Glycan Analyses">
-                        {% for result in manager.glycan_analyses() %}
-                            <option value="Analysis,{{result.id}}">{{result.name}}</option>
+                        {% for hypothesis in manager.glycan_hypotheses(user) %}
+                            <option value="Hypothesis,{{hypothesis.uuid}}">{{hypothesis.name}}</option>
                         {% endfor %}
                         </optgroup>
                     </select>
                 </div>
-                <div id='glycan-import-score-filter-container' class='input-field'>
-                    <input type='number' name='glycan-import-score-filter' class='numeric-entry'
-                           id='glycan-import-score-filter' min='0' max='1' value='0.3'
-                           step='0.05'/>
-                    <label for='glycan-import-score-filter'>
-                        Minimum Glycomics Score Threshold
-                    </label>
-                </div>
-            </div>
+            </div> #}
         </div>
         <div class='row'>
             <div class='col s3 tooltipped' data-position='top' data-tooltip="Be careful if using a large number glycans, as this can make the hypothesis intractably large.">
@@ -117,10 +128,16 @@
                 </div>
             </div>
         </div>
-
-        <button class='btn wave-effect'>
-            Generate
-        </button>
+        <div class='row'>
+            <div class='col s4'>
+                <button class='btn wave-effect'>
+                    Generate
+                </button>
+                <div id='protein-file-upload-progress' class="progress" style='width: 135px;'>
+                    <div class="determinate" style="width: 0%;"></div>
+                </div>
+            </div>
+        </div>
     </form>
 </div>
 <script>
@@ -129,24 +146,70 @@ $("#protein-list-file").on("change", function(event){
     if(this.files[0] === undefined){
         return
     }
-    file = this.files[0]
+    var file = this.files[0]
     identifyProteomicsFormat(file, function(format){
-        $("#proteomics-file-type").val(format)
+        if (format.format == ProteomicsFileFormats.mzIdentML) {
+            if (format.version !== undefined) {
+                let minor = format.version[1]
+                if (minor === 0) {
+                    format.format = ProteomicsFileFormats.error
+                    format.version = undefined
+                }
+            }
+        }
+        $("#proteomics-file-type").val(format.format)
         updateFormatOptions(format, file)
     })
+    var nameInput = $("#hypothesis_name")
+    if(nameInput.val() == ""){
+        nameInput.val(file.name)
+    }
 })
 
-$('.tooltipped').tooltip({delay: 50});
+
+modificationSelectionEditor = makeModificationSelectionEditor(0, function(editor){
+    editor.chooseConstant("Carbamidomethyl (C)")
+})
+
+$("#modification-selection-editor-container").append(modificationSelectionEditor.container)
+
+materialTooltip()
 
 mzIdentMLHandle = undefined;
 
+
+function setProteinListErrorState(message) {
+    if (message === "" || message === undefined || message === null) {
+        var handle = $("#protein-list-file")
+        handle[0].setCustomValidity("")
+        handle = $("#protein-list-file-container input.file-path")
+        handle[0].setCustomValidity("")
+        handle.addClass("valid")
+        handle.removeClass("invalid")
+        $("#protein-list-file-container .btn").removeClass("red")
+    } else {
+        var handle = $("#protein-list-file")
+        handle[0].setCustomValidity(message)
+        handle = $("#protein-list-file-container input.file-path")
+        handle[0].setCustomValidity(message)
+        handle.addClass("invalid")
+        handle.removeClass("valid")
+        $("#protein-list-file-container .btn").addClass("red")
+    }
+}
+
+
 function updateFormatOptions(format, file){
     console.log(format)
-    if(format === "fasta"){
-        var handle = $("#variable-modifications-container")
-        handle.find("select").removeAttr("disabled").css("cursor", "default")
-        handle.find("h6").removeClass("grey-text")
-        handle.find("span.message").text("")
+    //Clear existing error
+    var handle = $("#protein-list-file")
+    setProteinListErrorState(null)
+    $("#mzid-protein-list-container").hide()
+    if(mzIdentMLHandle !== undefined) {
+        mzIdentMLHandle.clearContainer()
+    }
+    if(format.format === ProteomicsFileFormats.fasta){
+        modificationSelectionEditor.show()
 
         handle = $("#enzyme-container")
         handle.find("select").removeAttr("disabled").css("cursor", "default")
@@ -155,12 +218,10 @@ function updateFormatOptions(format, file){
         handle.find("span.message").text("")
         $("#mzid-protein-list-container").hide()
         mzIdentMLHandle = undefined
+
     }
-    else {
-        var handle = $("#variable-modifications-container")
-        handle.find("select").attr("disabled", true).css("cursor", "not-allowed")
-        handle.find("h6").addClass("grey-text")
-        handle.find("span.message").text("Informed Hypotheses do not need variable modification rules")
+    else if (format.format === ProteomicsFileFormats.mzIdentML) {
+        modificationSelectionEditor.hide()
 
         handle = $("#enzyme-container")
         handle.find("select").attr("disabled", true).css("cursor", "not-allowed")
@@ -170,19 +231,15 @@ function updateFormatOptions(format, file){
         $("#mzid-protein-list-container").show()
         mzIdentMLHandle = new MzIdentMLProteinSelector(file, "#mzid-protein-list-container")
     }
-}
-
-function selectModificationOption(select, value){
-    for(var i=0; i<select.options.length; i++){
-        if(select.options[i].value === value){
-            return select.options[i]
-        }
+    else if (format.format === ProteomicsFileFormats.error) {
+        setProteinListErrorState("File Format Could Not Be Recognized")
+        Materialize.toast("Protein List File Format Could Not Be Recognized")
     }
 }
 
-selectModificationOption(
-    $("#constant-modifications-container").find("select")[0],
-    "Carbamidomethyl (C)").selected = true
+// selectModificationOption(
+//     $("#constant-modifications-container").find("select")[0],
+//     "Carbamidomethyl (C)").selected = true
 
 ajaxForm($("form#glycopeptide-hypothesis-form"), function(){
     var currentAction = GlycReSoft.getShowingLayer()
@@ -199,7 +256,15 @@ ajaxForm($("form#glycopeptide-hypothesis-form"), function(){
         }
         formData.append("protein_names", proteinChoices)
     }
+    if(modificationSelectionEditor !== undefined){
+        formData.append("constant_modifications", modificationSelectionEditor.getConstantModificationSpecs())
+        formData.append("variable_modifications", modificationSelectionEditor.getVariableModificationSpecs())
+        console.log(modificationSelectionEditor)
+    }
     return formData
+}, function(ev){
+    var percent = ev.loaded / ev.total * 100.
+    $("#protein-file-upload-progress .determinate").css("width", percent + '%')
 })
 materialFileInput()
 })()

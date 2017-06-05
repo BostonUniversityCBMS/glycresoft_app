@@ -1,19 +1,63 @@
 identifyProteomicsFormat = (file, callback) ->
     isMzidentML = (lines) ->
+        i = 0
+        hit = false
+        tag = []
         for line in lines
             if /mzIdentML/.test line
-                return true
+                hit = true
+                break
+            i += 1
+        if hit
+            console.log(hit)
+            tag.push line[i]
+            tag.push lines[i + 1]
+            tag.push lines[i + 2]
+            tag = tag.join(" ")
+            hasVersion = /version="([0-9\.]+)"/.test tag
+            if hasVersion
+                match = /version="([0-9\.]+)"/.exec tag
+                version = match[1]
+                version = [parseInt(d) for d in version.split('.')]
+                return {"version": version, "format": ProteomicsFileFormats.mzIdentML}
+            else
+                return {"format": ProteomicsFileFormats.mzIdentML}
+
+        return false
+
+    isMzML = (lines) ->
+        i = 0
+        hit = false
+        tag = []
+        for line in lines
+            if /(mzML)|(indexedmzML)/.test line
+                hit = true
+                break
+            i += 1
+        if hit
+            return {"format": ProteomicsFileFormats.error}
         return false
 
     reader = new FileReader()
     reader.onload = ->
         lines = @result.split("\n")
-        console.log lines
-        proteomicsFileType = "fasta"
-        if isMzidentML(lines)
-            proteomicsFileType = "mzIdentML"
+        proteomicsFileType = {"format": ProteomicsFileFormats.fasta}
+        test = isMzML(lines)
+        if test
+            proteomicsFileType = test
+        test = isMzidentML(lines)
+        if test
+            proteomicsFileType = test
         callback(proteomicsFileType)
     reader.readAsText(file.slice(0, 100))
+
+
+ProteomicsFileFormats = {
+    mzIdentML: "mzIdentML"
+    fasta: "fasta"
+
+    error: "error"
+}
 
 
 getProteinName = (sequence) ->
@@ -61,7 +105,6 @@ getProteinNamesFromMzIdentML = (file, callback, nameCallback) ->
                         proteins[name] = true
                         nameCallback(name)
                 else if /<\/SequenceCollection>/i.test line
-                    console.log("Done!", line)
                     isDone = true
                 lastLine = ""
             catch error
@@ -86,6 +129,9 @@ class MzIdentMLProteinSelector
         @fileObject = file
         @container = $(listContainer)
         @initializeContainer()
+
+    clearContainer: ->
+        @container.html("")
 
     initializeContainer: ->
         template = """

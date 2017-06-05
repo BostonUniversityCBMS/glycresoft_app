@@ -5,13 +5,10 @@
             Protein Name
         </th>
         <th>
-            Glycopeptides Matched
+            Glycopeptides<br>Matched
         </th>
         <th>
-            Glycosylation Site Count
-        </th>
-        <th>
-            Glycopeptides Searched
+            Glycosylation<br>Site Count
         </th>
         </tr>
     </thead>
@@ -26,9 +23,6 @@
             </td>
             <td>
                 {{protein_row.protein.glycosylation_sites|length}}
-            </td>
-            <td>
-                {{protein_row.theoretical_count}}
             </td>
         </tr>
     {% endfor %}

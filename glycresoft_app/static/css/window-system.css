@@ -24,6 +24,10 @@ Modals
     max-height: 90% !important;
 }
 
+#message-modal {
+    width: 95% !important;
+}
+
 .modal .row{
     margin-left: auto !important;
     margin-right: auto !important;

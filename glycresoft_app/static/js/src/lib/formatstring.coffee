@@ -15,16 +15,16 @@ do ->
             if name == ''
                 name = keys[i]
                 i++
-            try
-                v = JSON.stringify(data[name])
-                # if v.length > 1
-                if v.startsWith('"') and v.endsWith('"')
-                    v = v.slice(1, -1)
-                return v
-            catch err   
-                console.log err, name, data
-                return undefined
-            return
+            # try
+            v = JSON.stringify(data[name])
+            # if v.length > 1
+            if v.startsWith('"') and v.endsWith('"')
+                v = v.slice(1, -1)
+            return v
+            # catch err   
+            #     console.log err, name, data
+            #     return undefined
+            # return
         )
         res
 

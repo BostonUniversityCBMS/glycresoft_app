@@ -7,12 +7,21 @@ This code is taken from https://github.com/Dogfalo/materialize/blob/master/js/fo
 
 materialRefresh = ->
     try
-        $('select').material_select();
+        materialTooltip()
+    try
+        $('select').material_select()
     try
         materialFileInput()
     try
         Materialize.updateTextFields()
+    try
+        clearTooltip()    
     return
+
+materialTooltip = ->
+    $('.material-tooltip').remove()
+    $('.tooltipped').tooltip({delay: 50});
+
 
 materialFileInput = ->
     $(document).on 'change', '.file-field input[type="file"]', ->
@@ -22,10 +31,10 @@ materialFileInput = ->
         file_names = []
         i = 0
         while i < files.length
-            file_names.push files[i].name
+            file_names.push(files[i].name)
             i++
-        path_input.val file_names.join(', ')
-        path_input.trigger 'change'
+        path_input.val(file_names.join(', '))
+        path_input.trigger('change')
         return
     return
 
@@ -34,3 +43,12 @@ materialCheckbox = (selector) ->
         handle = $(this)
         target = handle.attr("for")
         $("input[name='#{target}']").click()
+
+clearTooltip = () ->
+    $('.material-tooltip').hide()
+
+
+$ ->
+    $("body").on "click", ".lean-overlay", ->
+        $(".lean-overlay").remove()
+        console.log("Removing the overlay")

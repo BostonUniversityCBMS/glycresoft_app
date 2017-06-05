@@ -1,3 +1,6 @@
 <div class='footer' style='text-align: right; margin-right: 30px;position: fixed; bottom: 10px; right: 0px;'>
     <small>GlycReSoft {{application_version}}</small>
+    {% if has_native_client %}
+        <small>Native Client</small>
+    {% endif %}
 </div>

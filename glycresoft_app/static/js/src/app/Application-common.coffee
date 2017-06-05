@@ -7,6 +7,7 @@ class Application extends ActionLayerManager
             0
             1
         ]
+
         @context = {}
         @settings = {}
         @tasks = {}
@@ -20,21 +21,28 @@ class Application extends ActionLayerManager
         
         @connectEventSource()
         
+
+        @handleMessage "log", (data) =>
+            console.log(data)
+            return
+
         @handleMessage 'update', (data) =>
             Materialize.toast data.replace(/"/g, ''), 4000
             return
 
         @handleMessage 'task-queued', (data) =>
-            self.tasks[data.id] =
+            self.tasks[data.id] = Task.create
                 'id': data.id
                 'name': data.name
+                "created_at": data.created_at
                 'status': 'queued'
             self.updateTaskList()
             return
         @handleMessage 'task-start', (data) =>
-            self.tasks[data.id] =
+            self.tasks[data.id] = Task.create
                 'id': data.id
                 'name': data.name
+                "created_at": data.created_at
                 'status': 'running'
             self.updateTaskList()
             return
@@ -47,12 +55,23 @@ class Application extends ActionLayerManager
             try
                 self.tasks[data.id].status = 'finished'
             catch err
-                self.tasks[data.id] =
+                self.tasks[data.id] = Task.create
                     'id': data.id
                     'name': data.name
+                    "created_at": data.created_at
                     'status': 'finished'
             self.updateTaskList()
             return
+        @handleMessage "task-stopped", (data) =>
+            try
+                self.tasks[data.id].status = 'stopped'
+            catch err
+                self.tasks[data.id] = Task.create
+                    'id': data.id
+                    'name': data.name
+                    'status': 'stopped'
+            self.updateTaskList()
+            return            
         @handleMessage 'new-sample-run', (data) =>
             @samples[data.name] = data
             @emit "render-samples"
@@ -60,11 +79,24 @@ class Application extends ActionLayerManager
             @hypotheses[data.uuid] = data
             @emit "render-hypotheses"
         @handleMessage 'new-analysis', (data) =>
-            @analyses[data.id] = data
+            @analyses[data.uuid] = data
             @emit "render-analyses"
 
         @on "layer-change", (data) =>
             @colors.update()
+
+    setUser: (userId, callback) ->
+        User.set(userId, (userId) =>
+            @eventStream.close()
+            @connectEventSource()
+            @loadData()
+            Materialize.toast("Logged in as #{userId.user_id}")
+        )
+        if callback?
+            callback()
+
+    getUser: (callback) ->
+        User.get((userId) -> callback(userId.user_id))
 
     connectEventSource: ->
         @eventStream = new EventSource('/stream')
@@ -81,28 +113,60 @@ class Application extends ActionLayerManager
         ).error (err) ->
             console.log "error in updateSettings", err, arguments
 
-    updateTaskList: ->
+    updateTaskList: (clearFinished=true) ->
         taskListContainer = @sideNav.find('.task-list-container ul')
 
         clickTask = (event) ->
             handle = $(this)
             state = handle.attr('data-status')
             id = handle.attr('data-id')
-            if state == 'finished'
+            if (state == 'finished' or state == 'stopped') and event.which != 3
                 delete self.tasks[id]
                 handle.fadeOut()
                 handle.remove()
             return
         self = @
-        doubleClickTask = (event) ->
+
+        viewLog = (event) ->
             handle = $(this)    
             id = handle.attr('data-id')
-            $.get "/internal/log/" + id, (message) => self.displayMessageModal(message)
+            name = handle.attr("data-name")
+            created_at = handle.attr("data-created-at")
+            state = {}
+            modal = $("#message-modal")
+            updateWrapper = () ->
+                updater = ->
+                    status = taskListContainer.find("li[data-id='#{id}']").attr('data-status')
+                    if status == "running"
+                        $.get("/internal/log/#{name}-#{created_at}").success(
+                            (message) ->
+                                modal.find(".modal-content").html message
+                            )
+                state.intervalId = setInterval(updater, 5000)
+            completer = ->
+                clearInterval(state.intervalId)
 
-        taskListContainer.html _.map(@tasks, renderTask).join('')
-        taskListContainer.find('li').map (i, li) -> contextMenu li, {"View Log": doubleClickTask}
+            $.get("/internal/log/#{name}-#{created_at}").success(
+                (message) => self.displayMessageModal(message, {
+                    "ready": updateWrapper, "complete": completer})).error(
+                (err) => alert("An error occurred during retrieval. #{err.toString()}"))
+
+        cancelTask = (event) ->
+            userInput = window.confirm("Are you sure you want to cancel this task?")
+            if userInput
+                handle = $(this)
+                id = handle.attr('data-id')
+                $.get "/internal/cancel_task/" + id
+
+        taskListContainer.html("")
+        taskListContainer.append(_.map(
+            _.sortBy(_.values(@tasks), ["createdAt"]), renderTask))
+        taskListContainer.find('li').map (i, li) -> contextMenu li, {
+            "View Log": viewLog
+            "Cancel Task": cancelTask
+        }
         taskListContainer.find('li').click clickTask
-        taskListContainer.find("li").dblclick doubleClickTask
+        taskListContainer.find("li").dblclick viewLog
 
     handleMessage: (messageType, handler) ->
         @messageHandlers[messageType] = handler
@@ -146,31 +210,48 @@ class Application extends ActionLayerManager
                     layer.setup()
 
         ->
-            setInterval(@_upkeepIntervalCallback, 10000)
+            setInterval(@_upkeepIntervalCallback, @options.upkeepInterval || 10000)
+
+            refreshTasks = =>
+                TaskAPI.all (d) =>
+                    for key, task of d
+                        @tasks[key] = task
+                    @updateTaskList()
+
+            setInterval(refreshTasks, @options.refreshTasksInterval || 250000)
     ]
 
     loadData: ->
-        Hypothesis.all (d) => 
+        HypothesisAPI.all (d) => 
             @hypotheses = d
             @emit "render-hypotheses"
-        Sample.all (d) =>
+        SampleAPI.all (d) =>
             @samples = d
             @emit "render-samples"
-        Analysis.all (d) =>
+        AnalysisAPI.all (d) =>
             @analyses = d
             @emit "render-analyses"
-        Task.all (d) =>
+        TaskAPI.all (d) =>
+            for key, data of d
+                d[key] = Task.create(data)
             @tasks = d
             @updateTaskList()
+        MassShiftAPI.all (d) =>
+            @massShifts = d
         @colors.update()
 
     downloadFile: (filePath) ->
         window.location = "/internal/file_download/" + btoa(filePath)
 
-    displayMessageModal: (message) ->
+    displayMessageModal: (message, modalArgs) ->
         container = $("#message-modal")
         container.find('.modal-content').html message
-        container.openModal()
+        $(".lean-overlay").remove()
+        container.openModal(modalArgs)
+
+    closeMessageModal: ->
+        container = $("#message-modal")
+        container.closeModal()
 
     ajaxWithContext: (url, options) ->
         if !options?
@@ -185,6 +266,7 @@ class Application extends ActionLayerManager
 
     _upkeepIntervalCallback: =>
         if @eventStream.readyState == 2
+            console.log "Re-establishing EventSource"
             @connectEventSource()
             for msgType, handler of @messageHandlers
                 @handleMessage msgType, handler
@@ -193,13 +275,32 @@ class Application extends ActionLayerManager
     setHypothesisContext: (hypothseisUUID) ->
         @context.hypothseisUUID = hypothseisUUID
 
+    invalidate: ->
+        @monosaccharideFilterState.invalidate()
+        console.log("Invalidated")
+
+    isNativeClient: ->
+        window.nativeClientKey?
+
+
+createdAtParser = /(\d{4})-(\d{2})-(\d{2})\s(\d+)-(\d+)-(\d+(?:\.\d*)?)/
+
+
+class Task
+    @create: (obj) ->
+        return new Task(obj.id, obj.status, obj.name, obj.created_at)
+
+    constructor: (@id, @status, @name, @created_at) ->
+        [_, year, month, day, hour, minute, seconds] = @created_at.match(createdAtParser)
+        @createdAt = new Date(year, month, day, hour, minute, seconds)
+
+
 
 renderTask = (task) ->
-    '<li data-id=\'{id}\' data-status=\'{status}\'><b>{name}</b> ({status})</li>'.format task
-
-
-$(() ->
-    window.GlycReSoft = new Application(options={actionContainer: ".action-layer-container"})
-    GlycReSoft.runInitializers()
-    GlycReSoft.updateSettings()
-    GlycReSoft.updateTaskList())
+    name = task.name
+    status = task.status
+    id = task.id
+    created_at = task.created_at
+    element = $("<li data-id=\'#{id}\' data-status=\'#{status}\' data-name=\'#{name}\' data-created-at=\'#{created_at}\'><b>#{name}</b> (#{status})</li>")
+    element.attr("data-name", name)
+    element

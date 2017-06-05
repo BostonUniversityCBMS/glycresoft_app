@@ -15469,6 +15469,79 @@ button.picker__today:focus, button.picker__clear:focus, button.picker__close:foc
   }
 }
 
+.modification-listing {
+    height: 300px;
+    overflow-y: auto;
+}
+
+.modification-choices-container {
+
+}
+
+.modification-listing-container {
+
+}
+
+.modification-listing-header {
+    margin-bottom: 1px;
+    border-bottom: 1px solid grey;
+}
+
+.modification-choices {
+    border: 1px solid lightgrey;
+    border-radius: 3px;
+}
+
+.constant-modification-choices {
+    height: 130px;
+    overflow-y: auto;
+}
+
+.variable-modification-choices {
+    height: 130px;
+    overflow-y: auto;
+}
+
+.modification-rule-entry {
+    cursor: pointer;
+    padding: 3px;
+    margin-bottom: 1px !important;
+}
+
+.modification-rule-entry.selected {
+    background-color: rgba(142, 102, 252, 0.75);
+}
+
+.modification-rule-entry:hover {
+    background-color: rgba(222, 222, 222, 0.5)
+}
+
+.modification-rule-entry.selected:hover {
+    background-color: rgba(142, 152, 252, 0.75);
+}
+
+.modification-choice-controls a.btn {
+    margin: 1px;
+    margin-bottom: 15px;
+    font-family: Inconsolata;
+    width: 115px;
+    padding-left: 0px !important;
+    padding-right: 0px !important;
+}
+
+.modification-choice-controls {
+    margin-top: 35px;
+}
+
+.choice-list-header {
+    text-align: center;
+    font-size: 1em;
+}
+
+.modification-creation-container {
+    display: none;
+}
+
 /*
 
 Monosaccharide Grid
@@ -15476,8 +15549,13 @@ Monosaccharide Grid
 */
 
 
+.monosaccharide-name {
+    text-align: center;
+}
+
+
 .monosaccharide-row input{
-    width: 125px;
+    width: 90px;
     margin-bottom: 0px !important;
 }
 
@@ -15515,6 +15593,19 @@ Monosaccharide Grid
     margin-bottom: 2px !important;
 }
 
+.monosaccharide-constraints-row input {
+    width: 90px;
+    margin-bottom: 0px !important;
+}
+
+.constrained-value-cell{
+    margin-left: 5px !important;
+}
+
+.constrained-value {
+    width: 125px !important;
+}
+
 .project-name {
     font-weight: 900;
     font-size: 1.2em;
@@ -15541,10 +15632,64 @@ Monosaccharide Grid
     padding-right: 5%;
 }
 
+/*
+    Sample Analysis Tree List
+ */
 
-code.sequence-text {
-    font-family: Consolas, monospace !important;
+.project-item {
+    border-bottom: 1px solid lightgrey;
+    border-collapse: collapse;
 }
+
+.analysis-entry-list:not(:last-child) {
+    border-bottom: 1px solid lightgrey;
+    border-collapse: collapse;
+}
+
+.analysis-entry-item {
+    border-bottom: 1px solid lightgrey;
+    border-collapse: collapse;
+    padding-left: 15px;
+}
+
+.project-sample-name {
+    font-family: Inconsolata;
+    font-weight: 600;
+    font-size: 1.0em;
+    cursor: pointer;
+}
+
+.project-analysis-name {
+    font-family: Inconsolata;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.expanded-display-control {
+    cursor: pointer;
+}
+
+.expanded-display-control i {
+    font-size: 22px;
+    position: relative;
+    top: 5;
+}
+.log-display {
+
+}
+
+@font-face {
+    font-family: Inconsolata;
+    src: url("../fonts/Inconsolata/Inconsolata-Regular.ttf");
+    font-weight: normal;
+    font-style: normal;
+}
+
+
+code, pre {
+    font-family: Inconsolata, monospace !important;
+}
+
 
 .handle {
     cursor: hand;
@@ -15555,9 +15700,11 @@ code.sequence-text {
     border-bottom: 1px lightgrey solid;
 }
 
+
 .no-shadow {
     box-shadow: none !important;
 }
+
 
 .narrow-btn {
     padding-left: 12px !important;
@@ -15573,13 +15720,16 @@ code.sequence-text {
    clear: both;
 }
 
+
 #save-csv-file {
     line-height: 18px;
 }
 
+
 .user-provided-name {
     word-break: break-all;
 }
+
 
 .protein-name {
     padding-left: 20px;
@@ -15648,6 +15798,7 @@ Navigation
 
 .side-nav.fixed {
     padding-left: 5px;
+    width: 13%;
 }
 
 .task-list-container ul li {
@@ -15678,9 +15829,13 @@ Mass Shift Input
 }
 
 .mass-shift-input-table{
-    margin-top: 11px;
+    margin-top: -2.5%;
 }
 
+.section-title {
+    font-weight: 400;
+    color: #9e9e9e;
+}
 
 /*
 
@@ -15710,6 +15865,20 @@ Simple Numeric Entry
     text-align: center;
 }
 
+/*
+
+Peptide Sequence Display
+
+*/
+
+.peptide-sequence-cell {
+    word-break: break-all !important;
+    word-spacing: 0.01em !important;
+}
+
+#figure_1 > #patch_1{
+    display: none;
+}
 .table-container {
     overflow-x: scroll;
     width: 100%;
@@ -15727,8 +15896,15 @@ Protein Match Table
 */
 
 .protein-match-table th, .protein-match-table td {
-    min-width: 180px;
+    min-width: 120px;
     padding: 5px;
+}
+
+.protein-match-table th:first-child, .protein-match-table td:first-child {
+    min-width: 180px;
+    max-width: 180px;
+    word-break: break-all;
+    overflow-x: hidden;
 }
 
 .protein-match-table thead, .protein-match-table tbody {
@@ -15758,7 +15934,7 @@ Protein List Table
 */
 
 .protein-list-table {
-    width: 425px;
+    /*width: 425px;*/
 }
 
 .protein-list-table th, .protein-list-table td {
@@ -15983,6 +16159,10 @@ Modals
     width: 95% !important;
     height: 100% !important;
     max-height: 90% !important;
+}
+
+#message-modal {
+    width: 95% !important;
 }
 
 .modal .row{

@@ -1,29 +1,36 @@
-viewGlycanCompositionHypothesis = (hypothesisId) ->
-    detailModal = undefined
-    displayTable = undefined
-    currentPage = 1
 
-    setup = ->
-        # $("#save-csv-file").click downloadCSV
-        displayTable = $("#composition-table-container") 
-        updateCompositionTablePage 1
+class GlycanCompositionHypothesisPaginator extends PaginationBase
+    tableSelector: "#composition-table-container"
+    tableContainerSelector: "#composition-table-container"
+    rowSelector: "#composition-table-container tbody tr"
+    pageUrl: "/view_glycan_composition_hypothesis/{hypothesisId}/{page}"
 
-    setupGlycanCompositionTablePageHandler = (page=1) ->        
-        $('.display-table tbody tr').click(->)
-        $(':not(.disabled) .next-page').click(-> updateCompositionTablePage(page + 1))
-        $(':not(.disabled) .previous-page').click(-> updateCompositionTablePage(page - 1))
-        $('.pagination li :not(.active)').click ->
-            nextPage = $(@).attr("data-index")
-            if nextPage?
-                nextPage = parseInt nextPage
-                updateCompositionTablePage nextPage
+    constructor: (@hypothesisId, @handle, @controller) ->
+        super(1)
 
-    updateCompositionTablePage = (page=1) ->
-        url = "/view_glycan_composition_hypothesis/#{hypothesisId}/#{page}"
-        console.log(url)
-        GlycReSoft.ajaxWithContext(url).success (doc) ->
-            currentPage = page
-            displayTable.html doc
-            setupGlycanCompositionTablePageHandler page
+    getPageUrl: (page=1) ->
+        @pageUrl.format {"page": page, "hypothesisId": @hypothesisId}
 
-    setup()
+    rowClickHandler: (row) =>
+        console.log row
+
+
+class GlycanCompositionHypothesisController
+    containerSelector: '#glycan-composition-hypothesis-container'
+    saveTxtURL: "/view_glycan_composition_hypothesis/{hypothesisId}/download-text"
+
+    constructor: (@hypothesisId) ->
+        @handle = $ @containerSelector
+        @paginator = new GlycanCompositionHypothesisPaginator(@hypothesisId, @handle, @)
+        @setup()
+
+    setup: ->
+        self = @
+        @paginator.setupTable()
+        @handle.find("#save-text-btn").click ->
+            self.downloadTxt()
+
+    downloadTxt: ->
+        url = @saveTxtURL.format {"hypothesisId": @hypothesisId}
+        $.get(url).then (payload) ->
+            GlycReSoft.downloadFile payload.filenames[0]

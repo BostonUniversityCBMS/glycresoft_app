@@ -1,4 +1,4 @@
-var Application, renderTask,
+var Application, Task, createdAtParser, renderTask,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
@@ -23,6 +23,11 @@ Application = (function(superClass) {
     self.monosaccharideFilterState = new MonosaccharideFilterState(self, null);
     this.messageHandlers = {};
     this.connectEventSource();
+    this.handleMessage("log", (function(_this) {
+      return function(data) {
+        console.log(data);
+      };
+    })(this));
     this.handleMessage('update', (function(_this) {
       return function(data) {
         Materialize.toast(data.replace(/"/g, ''), 4000);
@@ -30,21 +35,23 @@ Application = (function(superClass) {
     })(this));
     this.handleMessage('task-queued', (function(_this) {
       return function(data) {
-        self.tasks[data.id] = {
+        self.tasks[data.id] = Task.create({
           'id': data.id,
           'name': data.name,
+          "created_at": data.created_at,
           'status': 'queued'
-        };
+        });
         self.updateTaskList();
       };
     })(this));
     this.handleMessage('task-start', (function(_this) {
       return function(data) {
-        self.tasks[data.id] = {
+        self.tasks[data.id] = Task.create({
           'id': data.id,
           'name': data.name,
+          "created_at": data.created_at,
           'status': 'running'
-        };
+        });
         self.updateTaskList();
       };
     })(this));
@@ -63,11 +70,28 @@ Application = (function(superClass) {
           self.tasks[data.id].status = 'finished';
         } catch (_error) {
           err = _error;
-          self.tasks[data.id] = {
+          self.tasks[data.id] = Task.create({
             'id': data.id,
             'name': data.name,
+            "created_at": data.created_at,
             'status': 'finished'
-          };
+          });
+        }
+        self.updateTaskList();
+      };
+    })(this));
+    this.handleMessage("task-stopped", (function(_this) {
+      return function(data) {
+        var err;
+        try {
+          self.tasks[data.id].status = 'stopped';
+        } catch (_error) {
+          err = _error;
+          self.tasks[data.id] = Task.create({
+            'id': data.id,
+            'name': data.name,
+            'status': 'stopped'
+          });
         }
         self.updateTaskList();
       };
@@ -86,7 +110,7 @@ Application = (function(superClass) {
     })(this));
     this.handleMessage('new-analysis', (function(_this) {
       return function(data) {
-        _this.analyses[data.id] = data;
+        _this.analyses[data.uuid] = data;
         return _this.emit("render-analyses");
       };
     })(this));
@@ -96,6 +120,26 @@ Application = (function(superClass) {
       };
     })(this));
   }
+
+  Application.prototype.setUser = function(userId, callback) {
+    User.set(userId, (function(_this) {
+      return function(userId) {
+        _this.eventStream.close();
+        _this.connectEventSource();
+        _this.loadData();
+        return Materialize.toast("Logged in as " + userId.user_id);
+      };
+    })(this));
+    if (callback != null) {
+      return callback();
+    }
+  };
+
+  Application.prototype.getUser = function(callback) {
+    return User.get(function(userId) {
+      return callback(userId.user_id);
+    });
+  };
 
   Application.prototype.connectEventSource = function() {
     return this.eventStream = new EventSource('/stream');
@@ -130,39 +174,80 @@ Application = (function(superClass) {
     });
   };
 
-  Application.prototype.updateTaskList = function() {
-    var clickTask, doubleClickTask, self, taskListContainer;
+  Application.prototype.updateTaskList = function(clearFinished) {
+    var cancelTask, clickTask, self, taskListContainer, viewLog;
+    if (clearFinished == null) {
+      clearFinished = true;
+    }
     taskListContainer = this.sideNav.find('.task-list-container ul');
     clickTask = function(event) {
       var handle, id, state;
       handle = $(this);
       state = handle.attr('data-status');
       id = handle.attr('data-id');
-      if (state === 'finished') {
+      if ((state === 'finished' || state === 'stopped') && event.which !== 3) {
         delete self.tasks[id];
         handle.fadeOut();
         handle.remove();
       }
     };
     self = this;
-    doubleClickTask = function(event) {
-      var handle, id;
+    viewLog = function(event) {
+      var completer, created_at, handle, id, modal, name, state, updateWrapper;
       handle = $(this);
       id = handle.attr('data-id');
-      return $.get("/internal/log/" + id, (function(_this) {
+      name = handle.attr("data-name");
+      created_at = handle.attr("data-created-at");
+      state = {};
+      modal = $("#message-modal");
+      updateWrapper = function() {
+        var updater;
+        updater = function() {
+          var status;
+          status = taskListContainer.find("li[data-id='" + id + "']").attr('data-status');
+          if (status === "running") {
+            return $.get("/internal/log/" + name + "-" + created_at).success(function(message) {
+              return modal.find(".modal-content").html(message);
+            });
+          }
+        };
+        return state.intervalId = setInterval(updater, 5000);
+      };
+      completer = function() {
+        return clearInterval(state.intervalId);
+      };
+      return $.get("/internal/log/" + name + "-" + created_at).success((function(_this) {
         return function(message) {
-          return self.displayMessageModal(message);
+          return self.displayMessageModal(message, {
+            "ready": updateWrapper,
+            "complete": completer
+          });
+        };
+      })(this)).error((function(_this) {
+        return function(err) {
+          return alert("An error occurred during retrieval. " + (err.toString()));
         };
       })(this));
     };
-    taskListContainer.html(_.map(this.tasks, renderTask).join(''));
+    cancelTask = function(event) {
+      var handle, id, userInput;
+      userInput = window.confirm("Are you sure you want to cancel this task?");
+      if (userInput) {
+        handle = $(this);
+        id = handle.attr('data-id');
+        return $.get("/internal/cancel_task/" + id);
+      }
+    };
+    taskListContainer.html("");
+    taskListContainer.append(_.map(_.sortBy(_.values(this.tasks), ["createdAt"]), renderTask));
     taskListContainer.find('li').map(function(i, li) {
       return contextMenu(li, {
-        "View Log": doubleClickTask
+        "View Log": viewLog,
+        "Cancel Task": cancelTask
       });
     });
     taskListContainer.find('li').click(clickTask);
-    return taskListContainer.find("li").dblclick(doubleClickTask);
+    return taskListContainer.find("li").dblclick(viewLog);
   };
 
   Application.prototype.handleMessage = function(messageType, handler) {
@@ -230,33 +315,57 @@ Application = (function(superClass) {
         };
       })(this));
     }, function() {
-      return setInterval(this._upkeepIntervalCallback, 10000);
+      var refreshTasks;
+      setInterval(this._upkeepIntervalCallback, this.options.upkeepInterval || 10000);
+      refreshTasks = (function(_this) {
+        return function() {
+          return TaskAPI.all(function(d) {
+            var key, task;
+            for (key in d) {
+              task = d[key];
+              _this.tasks[key] = task;
+            }
+            return _this.updateTaskList();
+          });
+        };
+      })(this);
+      return setInterval(refreshTasks, this.options.refreshTasksInterval || 250000);
     }
   ];
 
   Application.prototype.loadData = function() {
-    Hypothesis.all((function(_this) {
+    HypothesisAPI.all((function(_this) {
       return function(d) {
         _this.hypotheses = d;
         return _this.emit("render-hypotheses");
       };
     })(this));
-    Sample.all((function(_this) {
+    SampleAPI.all((function(_this) {
       return function(d) {
         _this.samples = d;
         return _this.emit("render-samples");
       };
     })(this));
-    Analysis.all((function(_this) {
+    AnalysisAPI.all((function(_this) {
       return function(d) {
         _this.analyses = d;
         return _this.emit("render-analyses");
       };
     })(this));
-    Task.all((function(_this) {
+    TaskAPI.all((function(_this) {
       return function(d) {
+        var data, key;
+        for (key in d) {
+          data = d[key];
+          d[key] = Task.create(data);
+        }
         _this.tasks = d;
         return _this.updateTaskList();
+      };
+    })(this));
+    MassShiftAPI.all((function(_this) {
+      return function(d) {
+        return _this.massShifts = d;
       };
     })(this));
     return this.colors.update();
@@ -266,11 +375,18 @@ Application = (function(superClass) {
     return window.location = "/internal/file_download/" + btoa(filePath);
   };
 
-  Application.prototype.displayMessageModal = function(message) {
+  Application.prototype.displayMessageModal = function(message, modalArgs) {
     var container;
     container = $("#message-modal");
     container.find('.modal-content').html(message);
-    return container.openModal();
+    $(".lean-overlay").remove();
+    return container.openModal(modalArgs);
+  };
+
+  Application.prototype.closeMessageModal = function() {
+    var container;
+    container = $("#message-modal");
+    return container.closeModal();
   };
 
   Application.prototype.ajaxWithContext = function(url, options) {
@@ -292,6 +408,7 @@ Application = (function(superClass) {
   Application.prototype._upkeepIntervalCallback = function() {
     var handler, msgType, ref;
     if (this.eventStream.readyState === 2) {
+      console.log("Re-establishing EventSource");
       this.connectEventSource();
       ref = this.messageHandlers;
       for (msgType in ref) {
@@ -306,27 +423,54 @@ Application = (function(superClass) {
     return this.context.hypothseisUUID = hypothseisUUID;
   };
 
+  Application.prototype.invalidate = function() {
+    this.monosaccharideFilterState.invalidate();
+    return console.log("Invalidated");
+  };
+
+  Application.prototype.isNativeClient = function() {
+    return window.nativeClientKey != null;
+  };
+
   return Application;
 
 })(ActionLayerManager);
 
-renderTask = function(task) {
-  return '<li data-id=\'{id}\' data-status=\'{status}\'><b>{name}</b> ({status})</li>'.format(task);
-};
+createdAtParser = /(\d{4})-(\d{2})-(\d{2})\s(\d+)-(\d+)-(\d+(?:\.\d*)?)/;
 
-$(function() {
-  var options;
-  window.GlycReSoft = new Application(options = {
-    actionContainer: ".action-layer-container"
-  });
-  GlycReSoft.runInitializers();
-  GlycReSoft.updateSettings();
-  return GlycReSoft.updateTaskList();
-});
+Task = (function() {
+  Task.create = function(obj) {
+    return new Task(obj.id, obj.status, obj.name, obj.created_at);
+  };
+
+  function Task(id1, status1, name1, created_at1) {
+    var _, day, hour, minute, month, ref, seconds, year;
+    this.id = id1;
+    this.status = status1;
+    this.name = name1;
+    this.created_at = created_at1;
+    ref = this.created_at.match(createdAtParser), _ = ref[0], year = ref[1], month = ref[2], day = ref[3], hour = ref[4], minute = ref[5], seconds = ref[6];
+    this.createdAt = new Date(year, month, day, hour, minute, seconds);
+  }
+
+  return Task;
+
+})();
+
+renderTask = function(task) {
+  var created_at, element, id, name, status;
+  name = task.name;
+  status = task.status;
+  id = task.id;
+  created_at = task.created_at;
+  element = $("<li data-id=\'" + id + "\' data-status=\'" + status + "\' data-name=\'" + name + "\' data-created-at=\'" + created_at + "\'><b>" + name + "</b> (" + status + ")</li>");
+  element.attr("data-name", name);
+  return element;
+};
 
 //# sourceMappingURL=Application-common.js.map
 
-var ActionBook, Analysis, Hypothesis, Sample, Task, makeAPIGet, makeParameterizedAPIGet;
+var ActionBook, AnalysisAPI, ErrorLogURL, HypothesisAPI, MassShiftAPI, SampleAPI, TaskAPI, User, makeAPIGet, makeParameterizedAPIGet;
 
 ActionBook = {
   home: {
@@ -362,6 +506,10 @@ ActionBook = {
   viewHypothesis: {
     contentURLTemplate: "/view_hypothesis/{uuid}",
     method: "post"
+  },
+  viewSample: {
+    contentURLTemplate: "/view_sample/{sample_id}",
+    method: 'get'
   }
 };
 
@@ -377,21 +525,36 @@ makeParameterizedAPIGet = function(url) {
   };
 };
 
-Hypothesis = {
+HypothesisAPI = {
   all: makeAPIGet("/api/hypotheses"),
   get: makeParameterizedAPIGet("/api/hypotheses/{}")
 };
 
-Sample = {
+SampleAPI = {
   all: makeAPIGet("/api/samples")
 };
 
-Analysis = {
+AnalysisAPI = {
   all: makeAPIGet("/api/analyses")
 };
 
-Task = {
+TaskAPI = {
   all: makeAPIGet("/api/tasks")
+};
+
+ErrorLogURL = "/log_js_error";
+
+User = {
+  get: makeAPIGet("/users/current_user"),
+  set: function(user_id, callback) {
+    return $.post("/users/login", {
+      "user_id": user_id
+    }).success(callback);
+  }
+};
+
+MassShiftAPI = {
+  all: makeAPIGet("/api/mass-shift")
 };
 
 //# sourceMappingURL=bind-urls.js.map
@@ -399,7 +562,7 @@ Task = {
 var ConstraintInputGrid, MonosaccharideInputWidgetGrid;
 
 MonosaccharideInputWidgetGrid = (function() {
-  MonosaccharideInputWidgetGrid.prototype.template = "<div class='monosaccharide-row row'>\n    <div class='input-field col s3'>\n        <label for='mass_shift_name'>Monosaccharide Name</label>\n        <input class='monosaccharide-name' type='text' name='monosaccharide_name' placeholder='Name'>\n    </div>\n    <div class='input-field col s3'>\n        <label for='monosaccharide_mass_delta'>Lower Bound</label>\n        <input class='lower-bound numeric-entry' type='number' name='monosaccharide_lower_bound' placeholder='Lower Bound'>\n    </div>\n    <div class='input-field col s3'>\n        <label for='monosaccharide_max_count'>Upper Bound</label>    \n        <input class='upper-bound numeric-entry' type='number' min='0' placeholder='Upper Bound' name='monosaccharide_upper_bound'>\n    </div>\n</div>";
+  MonosaccharideInputWidgetGrid.prototype.template = "<div class='monosaccharide-row row'>\n    <div class='input-field col s2'>\n        <label for='mass_shift_name'>Residue Name</label>\n        <input class='monosaccharide-name center-align' type='text' name='monosaccharide_name' placeholder='Name'>\n    </div>\n    <div class='input-field col s2'>\n        <label for='monosaccharide_mass_delta'>Lower Bound</label>\n        <input class='lower-bound numeric-entry' min='0' type='number' name='monosaccharide_lower_bound' placeholder='Bound'>\n    </div>\n    <div class='input-field col s2'>\n        <label for='monosaccharide_max_count'>Upper Bound</label>    \n        <input class='upper-bound numeric-entry' type='number' min='0' placeholder='Bound' name='monosaccharide_upper_bound'>\n    </div>\n</div>";
 
   function MonosaccharideInputWidgetGrid(container) {
     this.counter = 0;
@@ -408,26 +571,35 @@ MonosaccharideInputWidgetGrid = (function() {
   }
 
   MonosaccharideInputWidgetGrid.prototype.update = function() {
-    var entry, i, len, monosaccharides, notif, notify, ref, row;
+    var continuation, entry, i, len, monosaccharides, notif, notify, pos, ref, row;
     monosaccharides = {};
     ref = this.container.find(".monosaccharide-row");
     for (i = 0, len = ref.length; i < len; i++) {
       row = ref[i];
       row = $(row);
-      console.log(row);
       entry = {
         name: row.find(".monosaccharide-name").val(),
         lower_bound: row.find(".lower-bound").val(),
         upper_bound: row.find(".upper-bound").val()
       };
       if (entry.name === "") {
+        row.removeClass("warning");
+        if (row.data("tinyNotification") != null) {
+          notif = row.data("tinyNotification");
+          notif.dismiss();
+          row.data("tinyNotification", void 0);
+        }
         continue;
       }
       if (entry.name in monosaccharides) {
         row.addClass("warning");
-        notify = new TinyNotification(0, 0, "This monosaccharide is already present.", row);
+        pos = row.position();
+        if (row.data("tinyNotification") != null) {
+          notif = row.data("tinyNotification");
+          notif.dismiss();
+        }
+        notify = new TinyNotification(pos.top + 50, pos.left, "This residue is already present.", row);
         row.data("tinyNotification", notify);
-        console.log(notify);
       } else {
         row.removeClass("warning");
         if (row.data("tinyNotification") != null) {
@@ -436,9 +608,34 @@ MonosaccharideInputWidgetGrid = (function() {
           row.data("tinyNotification", void 0);
         }
         monosaccharides[entry.name] = entry;
+        continuation = function(gridRow) {
+          return $.post("/api/validate-iupac", {
+            "target_string": entry.name
+          }).then(function(validation, message, query) {
+            if (validation.valid) {
+              if (!(entry.name in monosaccharides)) {
+                gridRow.removeClass("warning");
+                if (gridRow.data("tinyNotification") != null) {
+                  notif = gridRow.data("tinyNotification");
+                  notif.dismiss();
+                  return gridRow.data("tinyNotification", void 0);
+                }
+              }
+            } else {
+              gridRow.addClass("warning");
+              pos = gridRow.position();
+              if (gridRow.data("tinyNotification") != null) {
+                notif = gridRow.data("tinyNotification");
+                notif.dismiss();
+              }
+              notify = new TinyNotification(pos.top + 50, pos.left, validation.message, gridRow);
+              return gridRow.data("tinyNotification", notify);
+            }
+          });
+        };
+        continuation(row);
       }
     }
-    console.log(monosaccharides);
     return this.monosaccharides = monosaccharides;
   };
 
@@ -487,7 +684,6 @@ MonosaccharideInputWidgetGrid = (function() {
         return _this.update();
       };
     })(this));
-    console.log(row);
     return this.update();
   };
 
@@ -496,7 +692,7 @@ MonosaccharideInputWidgetGrid = (function() {
 })();
 
 ConstraintInputGrid = (function() {
-  ConstraintInputGrid.prototype.template = "<div class=\"monosaccharide-constraints-row row\">\n    <div class='input-field col s4'>\n        <label for='left_hand_side'>Name</label>\n        <input class='monosaccharide-name' type='text' name='left_hand_side' placeholder='Name'>\n    </div>\n    <div class='input-field col s1' style='padding-left: 2px;padding-right: 2px;'>\n        <select class='browser-default' name='operator'>\n            <option>=</option>\n            <option>!=</option>\n            <option>&gt;</option>\n            <option>&lt;</option>\n            <option>&gt;=</option>\n            <option>&lt;=</option>\n        </select>\n    </div>\n    <div class='input-field col s4'>\n        <label for='right_hand_side'>Name/Value</label>\n        <input class='monosaccharide-name' type='text' name='right_hand_side' placeholder='Name/Value'>\n    </div>\n</div>";
+  ConstraintInputGrid.prototype.template = "<div class=\"monosaccharide-constraints-row row\">\n    <div class='input-field col s2'>\n        <label for='left_hand_side'>Limit</label>\n        <input class='monosaccharide-name center-align' type='text' name='left_hand_side' placeholder='Name'>\n    </div>\n    <div class='input-field col s2' style='padding-left: 2px;padding-right: 2px;'>\n        <select class='browser-default center-align' name='operator'>\n            <option>=</option>\n            <option>!=</option>\n            <option>&gt;</option>\n            <option>&lt;</option>\n            <option>&gt;=</option>\n            <option>&lt;=</option>\n        </select>\n    </div>\n    <div class='input-field col s4 constrained-value-cell'>\n        <label for='right_hand_side'>Constrained Value</label>\n        <input class='monosaccharide-name constrained-value' type='text' name='right_hand_side' placeholder='Name/Value'>\n    </div>\n</div>";
 
   function ConstraintInputGrid(container, monosaccharideGrid) {
     this.counter = 0;
@@ -595,19 +791,28 @@ Application.prototype.renderAnalyses = function(container) {
   template = (function() {
     var i, len, ref, results;
     ref = _.sortBy(_.values(this.analyses), function(o) {
-      return o.id;
+      var counter, index, parts;
+      parts = o.name.split(" ");
+      counter = parts[parts.length - 1];
+      if (counter.startsWith("(") && counter.endsWith(")")) {
+        index = parseInt(counter.slice(1, -1));
+      } else {
+        index = Infinity;
+      }
+      return index;
     });
     results = [];
     for (i = 0, len = ref.length; i < len; i++) {
       analysis = ref[i];
       analysis.name = analysis.name !== '' ? analysis.name : "Analysis:" + analysis.uuid;
-      row = $("<div data-id=" + analysis.id + " class='list-item clearfix' data-uuid='" + analysis.uuid + "'> <span class='handle user-provided-name'>" + analysis.id + ". " + (analysis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + analysisTypeDisplayMap[analysis.analysis_type] + " <a class='remove-analysis mdi-content-clear'></a> </small> </div>");
+      row = $("<div data-id=" + analysis.uuid + " class='list-item clearfix' data-uuid='" + analysis.uuid + "'> <span class='handle user-provided-name'>" + (analysis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + analysisTypeDisplayMap[analysis.analysis_type] + " <!-- <a class='remove-analysis mdi-content-clear'></a> --> </small> </div>");
       chunks.push(row);
       self = this;
       row.click(function(event) {
         var handle, id;
+        GlycReSoft.invalidate();
         handle = $(this);
-        id = handle.attr('data-id');
+        id = handle.attr('data-uuid');
         self.addLayer(ActionBook.viewAnalysis, {
           analysis_id: id
         });
@@ -630,12 +835,21 @@ Application.prototype.renderAnalyses = function(container) {
 Application.initializers.push(function() {
   return this.on("render-analyses", (function(_this) {
     return function() {
-      return _this.renderAnalyses(".analysis-list");
+      try {
+        return _this.renderAnalyses(".analysis-list");
+      } catch (_error) {}
     };
   })(this));
 });
 
 //# sourceMappingURL=home-analysis-list-ui.js.map
+
+var hypothesisTypeDisplayMap;
+
+hypothesisTypeDisplayMap = {
+  "glycan_composition": "Glycan Hypothesis",
+  "glycopeptide": "Glycopeptide Hypothesis"
+};
 
 Application.prototype.renderHypothesisListAt = function(container) {
   var chunks, hypothesis, i, j, len, ref, row, self, template;
@@ -644,11 +858,11 @@ Application.prototype.renderHypothesisListAt = function(container) {
   self = this;
   i = 0;
   ref = _.sortBy(_.values(this.hypotheses), function(o) {
-    return o.id;
+    return o.name;
   });
   for (j = 0, len = ref.length; j < len; j++) {
     hypothesis = ref[j];
-    row = $("<div data-id=" + hypothesis.id + " data-uuid=" + hypothesis.uuid + " class='list-item clearfix'> <span class='handle user-provided-name'>" + i + ". " + (hypothesis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + (hypothesis.hypothesis_type != null ? hypothesis.hypothesis_type : '-') + " <a class='remove-hypothesis mdi mdi-close'></a> </small> </div>");
+    row = $("<div data-id=" + hypothesis.id + " data-uuid=" + hypothesis.uuid + " class='list-item clearfix'> <span class='handle user-provided-name'>" + (hypothesis.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + hypothesisTypeDisplayMap[hypothesis.hypothesis_type] + " <!-- <a class='remove-hypothesis mdi mdi-close'></a> --> </small> </div>");
     chunks.push(row);
     i += 1;
     row.click(function(event) {
@@ -684,10 +898,10 @@ var MassShiftInputWidget;
 
 MassShiftInputWidget = (function() {
   var addEmptyRowOnEdit, counter, template;
-  template = "<div class='mass-shift-row row'>\n    <div class='input-field col s3'>\n        <label for='mass_shift_name'>Name or Formula</label>\n        <input class='mass-shift-name' type='text' name='mass_shift_name' placeholder='Name/Formula'>\n    </div>\n    <div class='input-field col s2'>\n        <label for='mass_shift_max_count'>Maximum Count</label>    \n        <input class='max-count' type='number' min='0' placeholder='Maximum Count' name='mass_shift_max_count'>\n    </div>\n</div>";
+  template = "<div class='mass-shift-row row'>\n    <div class='input-field col s3' style='margin-right:55px; margin-left:30px;'>\n        <label for='mass_shift_name'>Name or Formula</label>\n        <input class='mass-shift-name' type='text' name='mass_shift_name' placeholder='Name/Formula'>\n    </div>\n    <div class='input-field col s2'>\n        <label for='mass_shift_max_count'>Up To Count</label>    \n        <input class='max-count' type='number' min='0' placeholder='Maximum Count' name='mass_shift_max_count'>\n    </div>\n</div>";
   counter = 0;
   addEmptyRowOnEdit = function(container, addHeader) {
-    var callback, row;
+    var autocompleteValues, callback, name, row;
     if (addHeader == null) {
       addHeader = true;
     }
@@ -706,7 +920,20 @@ MassShiftInputWidget = (function() {
       }
       return $(this).parent().find("label").removeClass("active");
     };
-    return row.find("input").change(callback);
+    row.find("input").change(callback);
+    autocompleteValues = {};
+    for (name in GlycReSoft.massShifts) {
+      if (name === "Unmodified") {
+        continue;
+      }
+      autocompleteValues[name] = null;
+    }
+    return row.find(".mass-shift-name").autocomplete({
+      data: autocompleteValues,
+      onAutocomplete: function(value) {
+        return console.log(value, this);
+      }
+    });
   };
   return addEmptyRowOnEdit;
 })();
@@ -778,7 +1005,7 @@ MonosaccharideFilterState = (function() {
     console.log(hypothesisUUID, this.hypothesisUUID);
     if (hypothesisUUID !== this.hypothesisUUID) {
       console.log("Is New Hypothesis");
-      return Hypothesis.get(hypothesisUUID, (function(_this) {
+      return HypothesisAPI.get(hypothesisUUID, (function(_this) {
         return function(result) {
           var hypothesis;
           hypothesis = result.hypothesis;
@@ -792,6 +1019,11 @@ MonosaccharideFilterState = (function() {
       this.setApplicationFilter();
       return callback(this.bounds);
     }
+  };
+
+  MonosaccharideFilterState.prototype.invalidate = function() {
+    this.setHypothesis(null);
+    return this.setApplicationFilter();
   };
 
   return MonosaccharideFilterState;
@@ -828,7 +1060,7 @@ MonosaccharideFilter = (function() {
       this.rules[residue] = rule;
     }
     residue.name = residue;
-    residue.sanitizeName = sanitizeName = residue.replace(/[\(\),]/g, "_");
+    residue.sanitizeName = sanitizeName = residue.replace(/[\(\),#.@\^]/g, "_");
     template = "<span class=\"col s2 monosaccharide-filter\" data-name='" + residue + "'>\n    <p style='margin: 0px; margin-bottom: -10px;'>\n        <input type=\"checkbox\" id=\"" + sanitizeName + "_include\" name=\"" + sanitizeName + "_include\"/>\n        <label for=\"" + sanitizeName + "_include\"><b>" + residue + "</b></label>\n    </p>\n    <p style='margin-top: 0px; margin-bottom: 0px;'>\n        <input id=\"" + sanitizeName + "_min\" type=\"number\" placeholder=\"Minimum " + residue + "\" style='width: 45px;' min=\"0\"\n               value=\"" + rule.minimum + "\" max=\"" + rule.maximum + "\" name=\"" + sanitizeName + "_min\"/> : \n        <input id=\"" + sanitizeName + "_max\" type=\"number\" placeholder=\"Maximum " + residue + "\" style='width: 45px;' min=\"0\"\n               value=\"" + rule.maximum + "\" name=\"" + sanitizeName + "_max\"/>\n    </p>\n</span>";
     self = this;
     rendered = $(template);
@@ -878,23 +1110,565 @@ MonosaccharideFilter = (function() {
 
 //# sourceMappingURL=monosaccharide-composition-filter.js.map
 
+var ModificationIndex, ModificationRule, ModificationRuleListing, ModificationSelectionEditor, ModificationSpecification, ModificationTarget, PositionClassifier, makeModificationSelectionEditor, parseModificationRuleSpecification,
+  extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+  hasProp = {}.hasOwnProperty,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+PositionClassifier = {
+  "nterm": "N-term",
+  "cterm": "C-term",
+  "N-term": "N-term",
+  "C-term": "C-term"
+};
+
+parseModificationRuleSpecification = function(specString) {
+  var match;
+  match = /(.*)\s\((.+)\)$/.exec(specString);
+  return [match[1], ModificationTarget.parse(match[2])];
+};
+
+ModificationTarget = (function() {
+  function ModificationTarget(residues, positionClassifier) {
+    if (residues == null) {
+      residues = [];
+    }
+    this.residues = residues;
+    this.positionClassifier = positionClassifier;
+  }
+
+  ModificationTarget.prototype.serialize = function() {
+    var parts;
+    parts = [];
+    parts.push(this.residues.join(""));
+    if (this.positionClassifier != null) {
+      parts.push("@");
+      parts.push(PositionClassifier[this.positionClassifier]);
+    }
+    return parts.join(" ");
+  };
+
+  ModificationTarget.parse = function(specString) {
+    var match;
+    match = /([A-Z]*)(?: @ ([NC]-term))?/.exec(specString);
+    return new ModificationTarget(match[1].split(""), match[2]);
+  };
+
+  return ModificationTarget;
+
+})();
+
+ModificationRule = (function() {
+  function ModificationRule(name1, formula1, mass, targets, hidden, category, recent) {
+    var k, len, target;
+    this.name = name1;
+    this.formula = formula1;
+    this.mass = mass;
+    this.hidden = hidden != null ? hidden : false;
+    this.category = category != null ? category : 0;
+    this.recent = recent != null ? recent : false;
+    this.targets = [];
+    if (targets != null) {
+      if (_.isArray(targets)) {
+        for (k = 0, len = targets.length; k < len; k++) {
+          target = targets[k];
+          this.addTarget(target);
+        }
+      } else {
+        this.addTarget(target);
+      }
+    }
+  }
+
+  ModificationRule.prototype.addTarget = function(target) {
+    if (!(target instanceof ModificationTarget)) {
+      target = ModificationTarget.parse(target);
+    }
+    return this.targets.push(target);
+  };
+
+  ModificationRule.prototype.toSpecifications = function() {
+    var k, len, ref, specs, target;
+    specs = [];
+    ref = this.targets;
+    for (k = 0, len = ref.length; k < len; k++) {
+      target = ref[k];
+      specs.push(new ModificationSpecification(this, target));
+    }
+    return specs;
+  };
+
+  ModificationRule.prototype.render = function(container) {
+    var entry, formula, formulaEntry, k, len, name, nameEntry, ref, results, target;
+    if (this.name.length < 20) {
+      name = this.name;
+      nameEntry = "<div class=\"modification-rule-entry-name col s4\" data-modification-name=\"" + this.name + "\">\n    " + name + "\n</div>";
+    } else {
+      name = this.name.slice(0, 17) + "...";
+      nameEntry = "<div class=\"modification-rule-entry-name col s4 tooltipped\" data-tooltip=\"" + this.name + "\" data-modification-name=\"" + this.name + "\">\n    " + name + "\n</div>";
+    }
+    if (this.formula.length < 13) {
+      formula = this.formula;
+      formulaEntry = "<div class=\"modification-rule-entry-formula col s3\">\n    " + formula + "\n</div>";
+    } else {
+      formula = this.formula.slice(0, 10) + '...';
+      formulaEntry = "<div class=\"modification-rule-entry-formula col s3 tooltipped\" data-tooltip=\"" + this.formula + "\">\n    " + formula + "\n</div>";
+    }
+    ref = this.targets;
+    results = [];
+    for (k = 0, len = ref.length; k < len; k++) {
+      target = ref[k];
+      entry = $("<div class=\"modification-rule-entry row\">\n    " + nameEntry + "\n    <div class=\"modification-rule-entry-target col s2\">\n        " + (target.serialize()) + "\n    </div>\n    " + formulaEntry + "\n    <div class=\"modification-rule-entry-mass col s3\">\n        " + this.mass + "\n    </div>\n</div>");
+      results.push(container.append(entry));
+    }
+    return results;
+  };
+
+  return ModificationRule;
+
+})();
+
+ModificationSpecification = (function() {
+  function ModificationSpecification(rule1, target1, hidden) {
+    this.rule = rule1;
+    this.target = target1;
+    this.hidden = hidden != null ? hidden : false;
+    this.name = this.rule.name;
+    this.formula = this.rule.formula;
+    this.mass = this.rule.mass;
+  }
+
+  ModificationSpecification.prototype.render = function(container) {
+    var entry, formula, formulaEntry, name, nameEntry;
+    if (this.name.length < 20) {
+      name = this.name;
+      nameEntry = "<div class=\"modification-rule-entry-name col s4\" data-modification-name=\"" + this.name + "\">\n    " + name + "\n</div>";
+    } else {
+      name = this.name.slice(0, 17) + "...";
+      nameEntry = "<div class=\"modification-rule-entry-name col s4 tooltipped\" data-tooltip=\"" + this.name + "\" data-modification-name=\"" + this.name + "\">\n    " + name + "\n</div>";
+    }
+    if (this.formula.length < 13) {
+      formula = this.formula;
+      formulaEntry = "<div class=\"modification-rule-entry-formula col s3\">\n    " + formula + "\n</div>";
+    } else {
+      formula = this.formula.slice(0, 10) + '...';
+      formulaEntry = "<div class=\"modification-rule-entry-formula col s3 tooltipped\" data-tooltip=\"" + this.formula + "\">\n    " + formula + "\n</div>";
+    }
+    entry = $("<div class=\"modification-rule-entry row\" data-key=\"" + (this.serialize()) + "\">\n    " + nameEntry + "\n    <div class=\"modification-rule-entry-target col s2\">\n        " + (this.target.serialize()) + "\n    </div>\n    " + formulaEntry + "\n    <div class=\"modification-rule-entry-mass col s3\">\n        " + this.mass + "\n    </div>\n</div>");
+    return container.append(entry);
+  };
+
+  ModificationSpecification.prototype.serialize = function() {
+    return this.name + " (" + (this.target.serialize()) + ")";
+  };
+
+  return ModificationSpecification;
+
+})();
+
+ModificationIndex = (function() {
+  function ModificationIndex(rules) {
+    if (rules == null) {
+      rules = {};
+    }
+    this.rules = rules;
+    this.index = {};
+  }
+
+  ModificationIndex.prototype.addRule = function(rule) {
+    return this.rules[rule.serialize()] = rule;
+  };
+
+  ModificationIndex.prototype.removeRule = function(rule) {
+    return delete this.rules[rule.serialize()];
+  };
+
+  ModificationIndex.prototype.getRule = function(spec) {
+    return this.rules[spec];
+  };
+
+  ModificationIndex.prototype.updateRuleFromSpecString = function(specString) {
+    var name, ref, target;
+    ref = parseModificationRuleSpecification(specString), name = ref[0], target = ref[1];
+    if (this.rules[name] != null) {
+      return this.rules[name].addTarget(target);
+    } else {
+      throw new Error(name + " does not exist");
+    }
+  };
+
+  ModificationIndex.prototype.updateFromAPI = function(callback) {
+    return $.get("/api/modifications").done((function(_this) {
+      return function(collection) {
+        var definitions, entry, i, j, k, key, l, len, len1, len2, m, modSpec, name, ref, ref1, spec, specificities, target, tempIndex, values;
+        definitions = collection["definitions"];
+        specificities = collection["specificities"];
+        i = 0;
+        tempIndex = {};
+        for (k = 0, len = definitions.length; k < len; k++) {
+          values = definitions[k];
+          i += 1;
+          entry = new ModificationRule(values[0], values[1], values[2]);
+          tempIndex[entry.name] = entry;
+        }
+        j = 0;
+        for (l = 0, len1 = specificities.length; l < len1; l++) {
+          spec = specificities[l];
+          j += 1;
+          ref = parseModificationRuleSpecification(spec), name = ref[0], target = ref[1];
+          entry = tempIndex[name];
+          entry.addTarget(target);
+          j = 0;
+        }
+        for (key in tempIndex) {
+          entry = tempIndex[key];
+          ref1 = entry.toSpecifications();
+          for (m = 0, len2 = ref1.length; m < len2; m++) {
+            modSpec = ref1[m];
+            _this.addRule(modSpec);
+          }
+        }
+        console.log("Update From API Done");
+        _this.index = tempIndex;
+        if (callback != null) {
+          return callback(_this);
+        }
+      };
+    })(this));
+  };
+
+  return ModificationIndex;
+
+})();
+
+ModificationRuleListing = (function(superClass) {
+  extend(ModificationRuleListing, superClass);
+
+  function ModificationRuleListing(container1, rules) {
+    this.container = container1;
+    if (rules == null) {
+      rules = {};
+    }
+    ModificationRuleListing.__super__.constructor.call(this, rules);
+  }
+
+  ModificationRuleListing.prototype.find = function(selector) {
+    return this.container.find(selector);
+  };
+
+  ModificationRuleListing.prototype.render = function() {
+    var k, key, keys, len, rule;
+    this.container.empty();
+    keys = Object.keys(this.rules);
+    keys.sort(function(a, b) {
+      a = a.toLowerCase();
+      b = b.toLowerCase();
+      if (a > b) {
+        return 1;
+      } else if (a < b) {
+        return -1;
+      }
+      return 0;
+    });
+    for (k = 0, len = keys.length; k < len; k++) {
+      key = keys[k];
+      rule = this.rules[key];
+      if (rule.hidden) {
+        continue;
+      }
+      rule.render(this.container);
+    }
+    return materialTooltip();
+  };
+
+  return ModificationRuleListing;
+
+})(ModificationIndex);
+
+ModificationSelectionEditor = (function() {
+  function ModificationSelectionEditor(container1) {
+    this.container = container1;
+    this.getSelectedModifications = bind(this.getSelectedModifications, this);
+    this.fullListingContainer = this.container.find(".modification-listing");
+    this.constantListingContainer = this.container.find(".constant-modification-choices");
+    this.variableListingContainer = this.container.find(".variable-modification-choices");
+    this.fullListing = new ModificationRuleListing(this.fullListingContainer);
+    this.constantListing = new ModificationRuleListing(this.constantListingContainer);
+    this.variableListing = new ModificationRuleListing(this.variableListingContainer);
+    this.state = 'select';
+    this.setState(this.state);
+  }
+
+  ModificationSelectionEditor.prototype.initialize = function(callback) {
+    this.hide();
+    return this.fullListing.updateFromAPI((function(_this) {
+      return function(content) {
+        console.log("Finished Update From API");
+        _this.fullListing.render();
+        _this.setupHandlers();
+        _this.show();
+        if (callback != null) {
+          return callback(_this);
+        }
+      };
+    })(this));
+  };
+
+  ModificationSelectionEditor.prototype.hide = function() {
+    return this.container.hide();
+  };
+
+  ModificationSelectionEditor.prototype.show = function() {
+    return this.container.show();
+  };
+
+  ModificationSelectionEditor.prototype.getSelectedModifications = function(listing, sourceListing) {
+    var chosen, k, key, len, row, rule, specs;
+    if (sourceListing == null) {
+      sourceListing = this.fullListing;
+    }
+    chosen = listing.find(".selected");
+    specs = [];
+    for (k = 0, len = chosen.length; k < len; k++) {
+      row = chosen[k];
+      row = $(row);
+      key = row.data("key");
+      rule = sourceListing.getRule(key);
+      specs.push(rule);
+    }
+    return specs;
+  };
+
+  ModificationSelectionEditor.prototype._getChosenModificationSpecs = function(listing) {
+    var chosen, k, key, len, row, specs;
+    chosen = listing.find(".modification-rule-entry");
+    specs = [];
+    for (k = 0, len = chosen.length; k < len; k++) {
+      row = chosen[k];
+      row = $(row);
+      key = row.data("key");
+      specs.push(key);
+    }
+    return specs.join(";;;");
+  };
+
+  ModificationSelectionEditor.prototype.getConstantModificationSpecs = function() {
+    return this._getChosenModificationSpecs(this.constantListing);
+  };
+
+  ModificationSelectionEditor.prototype.getVariableModificationSpecs = function() {
+    return this._getChosenModificationSpecs(this.variableListing);
+  };
+
+  ModificationSelectionEditor.prototype._chooseModification = function(modSpec, listing) {
+    var rule;
+    rule = this.fullListing.getRule(modSpec);
+    this.fullListing.removeRule(rule);
+    listing.addRule(rule);
+    this.fullListing.render();
+    return listing.render();
+  };
+
+  ModificationSelectionEditor.prototype.chooseConstant = function(modSpec) {
+    return this._chooseModification(modSpec, this.constantListing);
+  };
+
+  ModificationSelectionEditor.prototype.chooseVariable = function(modSpec) {
+    return this._chooseModification(modSpec, this.variableListing);
+  };
+
+  ModificationSelectionEditor.prototype.transferModificationsToChosenSet = function(chosenListing) {
+    var k, len, ruleSpec, rules;
+    rules = this.getSelectedModifications(this.fullListingContainer);
+    for (k = 0, len = rules.length; k < len; k++) {
+      ruleSpec = rules[k];
+      this.fullListing.removeRule(ruleSpec);
+      chosenListing.addRule(ruleSpec);
+    }
+    chosenListing.render();
+    return this.fullListing.render();
+  };
+
+  ModificationSelectionEditor.prototype.removeRuleFromChosenSet = function(chosenListing) {
+    var k, len, ruleSpec, rules;
+    rules = this.getSelectedModifications(chosenListing, chosenListing);
+    for (k = 0, len = rules.length; k < len; k++) {
+      ruleSpec = rules[k];
+      chosenListing.removeRule(ruleSpec);
+      this.fullListing.addRule(ruleSpec);
+    }
+    this.fullListing.render();
+    return chosenListing.render();
+  };
+
+  ModificationSelectionEditor.prototype.setupHandlers = function() {
+    var self;
+    this.container.on("click", ".modification-rule-entry", function(event) {
+      var handle, isSelected;
+      handle = $(this);
+      isSelected = handle.data("selected");
+      if (isSelected == null) {
+        isSelected = false;
+      }
+      handle.data("selected", !isSelected);
+      if (handle.data("selected")) {
+        return handle.addClass("selected");
+      } else {
+        return handle.removeClass("selected");
+      }
+    });
+    self = this;
+    this.container.find(".add-constant-btn").click((function(_this) {
+      return function(event) {
+        return _this.transferModificationsToChosenSet(_this.constantListing);
+      };
+    })(this));
+    this.container.find(".add-variable-btn").click((function(_this) {
+      return function(event) {
+        return _this.transferModificationsToChosenSet(_this.variableListing);
+      };
+    })(this));
+    this.container.find(".remove-selected-btn").click((function(_this) {
+      return function(event) {
+        _this.removeRuleFromChosenSet(_this.constantListing);
+        return _this.removeRuleFromChosenSet(_this.variableListing);
+      };
+    })(this));
+    this.container.find(".create-custom-btn").click((function(_this) {
+      return function(event) {
+        return _this.setState("create");
+      };
+    })(this));
+    this.container.find(".cancel-creation-btn").click((function(_this) {
+      return function(event) {
+        return _this.setState("select");
+      };
+    })(this));
+    this.container.find(".submit-creation-btn").click((function(_this) {
+      return function(event) {
+        return _this.createModification();
+      };
+    })(this));
+    return this.container.find("#modification-listing-search").keyup(function(event) {
+      return self.filterSelectionList(this.value);
+    });
+  };
+
+  ModificationSelectionEditor.prototype.createModification = function() {
+    var formData, formula, name, target;
+    name = this.container.find("#new-modification-name").val();
+    formula = this.container.find("#new-modification-formula").val();
+    target = this.container.find("#new-modification-target").val();
+    formData = {
+      "new-modification-name": name,
+      "new-modification-formula": formula,
+      "new-modification-target": target
+    };
+    console.log("Submitting", formData);
+    return $.post("/glycopeptide_search_space/modification_menu", formData).done((function(_this) {
+      return function(payload) {
+        var k, l, len, len1, modRule, modSpec, ref, ref1, spec;
+        _this.container.find("#new-modification-name").val("");
+        _this.container.find("#new-modification-formula").val("");
+        _this.container.find("#new-modification-target").val("");
+        modRule = new ModificationRule(payload.name, payload.formula, payload.mass);
+        ref = payload.specificities;
+        for (k = 0, len = ref.length; k < len; k++) {
+          spec = ref[k];
+          modRule.addTarget(spec);
+        }
+        ref1 = modRule.toSpecifications();
+        for (l = 0, len1 = ref1.length; l < len1; l++) {
+          modSpec = ref1[l];
+          _this.fullListing.addRule(modSpec);
+        }
+        _this.fullListing.render();
+        return _this.setState("select");
+      };
+    })(this)).fail((function(_this) {
+      return function(err) {
+        return console.log(err);
+      };
+    })(this));
+  };
+
+  ModificationSelectionEditor.prototype.filterSelectionList = function(pattern) {
+    var err, key, ref, results, rule;
+    try {
+      pattern = new RegExp(pattern);
+      ref = this.fullListing.rules;
+      results = [];
+      for (key in ref) {
+        rule = ref[key];
+        if (pattern.test(key)) {
+          results.push(rule.hidden = false);
+        } else {
+          results.push(rule.hidden = true);
+        }
+      }
+      return results;
+    } catch (_error) {
+      err = _error;
+      return console.log(err);
+    } finally {
+      this.fullListing.render();
+    }
+  };
+
+  ModificationSelectionEditor.prototype.setState = function(state) {
+    if (state === 'select') {
+      this.container.find(".modification-listing-container").show();
+      this.container.find(".modification-creation-container").hide();
+      this.container.find(".modification-editor-disabled").hide();
+    } else if (state === 'create') {
+      this.container.find(".modification-listing-container").hide();
+      this.container.find(".modification-creation-container").show();
+      this.container.find(".modification-editor-disabled").hide();
+    } else if (state === "disabled") {
+      this.container.find(".modification-listing-container").hide();
+      this.container.find(".modification-creation-container").hide();
+      this.container.find(".modification-editor-disabled").show();
+    }
+    return this.state = state;
+  };
+
+  return ModificationSelectionEditor;
+
+})();
+
+makeModificationSelectionEditor = function(uid, callback) {
+  var handle, inst, template;
+  template = "<div class='modification-selection-editor' id='modification-selection-editor-" + uid + "'>\n    <div class='modification-listing-container'>\n        <div class='row'>\n            <h5 class='section-title'>Select Modifications</h5>\n        </div>\n        <div class='row'>\n            <div class='col s6'>\n                <div class='modification-listing-header row'>\n                    <div class='col s4'>Name</div>\n                    <div class='col s2'>Target</div>\n                    <div class='col s3'>Formula</div>\n                    <div class='col s3'>Mass</div>\n                </div>\n                <div class='modification-listing'>\n                </div>\n                <input id='modification-listing-search' type=\"text\" name=\"modification-listing-search\"\n                       placeholder=\"Search by name\"/>\n            </div>\n            <div class='col s2'>\n                <div class='modification-choice-controls'>\n                    <a class='btn add-constant-btn tooltipped'\n                       data-tooltip=\"Add Selected Modification Rules to Constant List\">\n                       + Constant</a><br>\n                    <a class='btn add-variable-btn tooltipped'\n                       data-tooltip=\"Add Selected Modification Rules to Variable List\">\n                       + Variable</a><br>\n                    <a class='btn remove-selected-btn tooltipped'\n                       data-tooltip=\"Remove Selected Rules From Constant and/or Variable List\">\n                       - Selection</a><br>\n                    <a class='btn create-custom-btn tooltipped' data-tooltip=\"Create New Modification Rule\">\n                        Create Custom</a><br>\n                </div>\n            </div>\n            <div class='modification-choices-container col s4'>\n                <div class='modification-choices'>\n                    <div class='choice-list-header'>\n                        Constant\n                    </div>\n                    <div class='constant-modification-choices'>\n                        \n                    </div>\n                    <div class='choice-list-header' style='border-top: 1px solid lightgrey'>\n                        Variable\n                    </div>\n                    <div class='variable-modification-choices'>\n                        \n                    </div>\n                </div>\n            </div>\n        </div>\n    </div>\n    <div class='modification-creation-container'>\n        <div class='row'>\n            <h5 class='section-title'>Create Modification</h5>\n        </div>\n        <div class='modification-creation row'>\n            <div class='col s3 input-field'>\n                <label for='new-modification-name'>New Modification Name</label>\n                <input id='new-modification-name' name=\"new-modification-name\"\n                       type=\"text\" class=\"validate\">\n            </div>\n            <div class='col s3 input-field'>\n                <label for='new-modification-formula'>New Modification Formula</label>\n                <input id='new-modification-formula' name=\"new-modification-formula\"\n                       type=\"text\" class=\"validate\" pattern=\"^[A-Za-z0-9\-\(\)]+$\">\n            </div>\n            <div class='col s3 input-field'>\n                <label for='new-modification-target'>New Modification Target</label>\n                <input id='new-modification-target' name=\"new-modification-target\"\n                       type=\"text\" class=\"validate\" pattern=\"([A-Z]*)(?: @ ([NC]-term))?\">\n            </div>\n        </div>\n        <div class='modification-choice-controls row'>\n            <a class='btn submit-creation-btn'>Create</a><br>\n            <a class='btn cancel-creation-btn'>Cancel</a><br>\n        </div>\n    </div>\n    <div class='modification-editor-disabled'>\n        Modification Specification Not Permitted\n    </div>\n</div>";
+  handle = $(template);
+  handle.find("#modification-selection-editor-" + uid);
+  inst = new ModificationSelectionEditor(handle);
+  inst.initialize(callback);
+  return inst;
+};
+
+//# sourceMappingURL=peptide-modification-ui.js.map
+
 var makePresetSelector, samplePreprocessingPresets, setSamplePreprocessingConfiguration;
 
 samplePreprocessingPresets = [
   {
-    name: "Negative Mode Glycomics",
-    max_charge: -9,
-    ms1_score_threshold: 15,
+    name: "MS Glycomics Profiling",
+    max_charge: 9,
+    ms1_score_threshold: 35,
     ms1_averagine: "glycan",
-    max_missing_peaks: 1
+    max_missing_peaks: 1,
+    msn_score_threshold: 10,
+    msn_averagine: 'glycan',
+    fit_only_msn: false
   }, {
-    name: "Positive Mode Glycoproteomics",
+    name: "LC-MS/MS Glycoproteomics",
     max_charge: 12,
     max_missing_peaks: 1,
     ms1_score_threshold: 35,
     ms1_averagine: "glycopeptide",
-    msn_score_threshold: 5,
-    msn_averagine: 'peptide'
+    msn_score_threshold: 10,
+    msn_averagine: 'peptide',
+    fit_only_msn: true
   }
 ];
 
@@ -908,10 +1682,12 @@ setSamplePreprocessingConfiguration = function(name) {
       break;
     }
   }
+  console.log(found, config);
   if (!found) {
     return;
   }
-  form = $("#add-sample");
+  form = $("form#add-sample-form");
+  console.log(form);
   form.find("#maximum-charge-state").val(config.max_charge);
   form.find("#missed-peaks").val(config.max_missing_peaks);
   form.find('#ms1-minimum-isotopic-score').val(config.ms1_score_threshold);
@@ -920,46 +1696,302 @@ setSamplePreprocessingConfiguration = function(name) {
     form.find('#msn-minimum-isotopic-score').val(config.msn_score_threshold);
   }
   if (config.msn_averagine != null) {
-    return form.find('#msn-averagine').val(config.msn_averagine);
+    form.find('#msn-averagine').val(config.msn_averagine);
+  }
+  if (config.fit_only_msn != null) {
+    return form.find("#msms-features-only").prop("checked", config.fit_only_msn);
   }
 };
 
 makePresetSelector = function(container) {
-  var elem, i, len, preset;
-  elem = $('<select style=\'browser-default\' name=\'preset-configuration>\n</select>');
+  var elem, i, label, len, preset;
+  label = $("<label for='preset-configuration'>Preset Configurations</label>");
+  container.append(label);
+  elem = $('<select class=\'browser-default\' name=\'preset-configuration\'></select>');
   for (i = 0, len = samplePreprocessingPresets.length; i < len; i++) {
     preset = samplePreprocessingPresets[i];
     elem.append($("<option value='" + preset.name + "'>" + preset.name + "</option>"));
   }
   container.append(elem);
-  return elem.change(function(event, name) {
-    return console.log(arguments);
+  return elem.change(function(event) {
+    console.log(this, arguments);
+    return setSamplePreprocessingConfiguration(this.value);
   });
 };
 
 //# sourceMappingURL=sample-preprocessing-configurations.js.map
 
-Application.prototype.renderSampleListAt = function(container) {
-  var chunks, row, sample, template;
-  chunks = [];
-  template = (function() {
-    var i, len, ref, results;
-    ref = _.sortBy(_.values(this.samples), function(o) {
-      return o.id;
-    });
-    results = [];
-    for (i = 0, len = ref.length; i < len; i++) {
-      sample = ref[i];
-      row = $("<div data-name=" + sample.name + " class='list-item clearfix' data-uuid='" + sample.uuid + "'> <span class='handle user-provided-name'>" + (sample.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + sample.sample_type + " <a class='remove-sample mdi mdi-close'></a> </small> </div>");
-      chunks.push(row);
-      results.push(row.find(".remove-sample").click(function(event) {
-        var handle;
-        handle = $(this);
-        return console.log(handle);
-      }));
+var composeSampleAnalysisTree;
+
+composeSampleAnalysisTree = function(bundle) {
+  var analyses, analysis, analysisList, entry, id, name, sampleMap, sampleName, samples, trees;
+  samples = bundle.samples;
+  analyses = bundle.analyses;
+  sampleMap = {};
+  for (id in analyses) {
+    analysis = analyses[id];
+    sampleName = analysis.sample_name;
+    if (sampleMap[sampleName] == null) {
+      sampleMap[sampleName] = [];
     }
-    return results;
-  }).call(this);
+    sampleMap[sampleName].push(analysis);
+  }
+  trees = [];
+  for (name in sampleMap) {
+    analysisList = sampleMap[name];
+    entry = {
+      "sample": samples[name],
+      "analyses": analysisList
+    };
+    trees.push(entry);
+  }
+  return trees;
+};
+
+Application.prototype.renderSampleTree = function(container) {
+  var analyses, analysis, analysisChunk, analysisChunks, cleanNamePattern, entry, expander, i, j, len, len1, prefix, rendered, sample, suffix, tree, trees;
+  container = $(container);
+  trees = composeSampleAnalysisTree(this);
+  rendered = [];
+  cleanNamePattern = /_/g;
+  for (i = 0, len = trees.length; i < len; i++) {
+    tree = trees[i];
+    sample = tree.sample;
+    analyses = tree.analyses;
+    analysisChunks = [];
+    if (analyses.length > 0) {
+      expander = "<span class=\"expanded-display-control indigo-text\">\n    <i class=\"material-icons\">check_box_outline_blank</i>\n</span>";
+    } else {
+      expander = "";
+    }
+    prefix = "<div class='project-entry'>\n    <div class=\"project-item\" data-uuid='" + sample.uuid + "'>\n        <span class='project-sample-name'>\n            " + expander + "\n            " + (sample.name.replace(cleanNamePattern, " ")) + "\n        </span>\n        <div class=\"analysis-entry-list\">";
+    for (j = 0, len1 = analyses.length; j < len1; j++) {
+      analysis = analyses[j];
+      analysisChunk = "<div class='analysis-entry-item' data-uuid='" + analysis.uuid + "'>\n    <span class='project-analysis-name'>\n        " + (analysis.name.replace(" at " + sample.name, "").replace(cleanNamePattern, " ")) + "\n    </span>\n</div>";
+      analysisChunks.push(analysisChunk);
+    }
+    suffix = "        </div>\n    </div>\n</div>";
+    entry = [prefix, analysisChunks.join("\n"), suffix].join("\n");
+    rendered.push(entry);
+  }
+  return container.append(rendered);
+};
+
+Application.initializers.push(function() {
+  return this.on("render-samples", (function(_this) {
+    return function() {
+      return _this.renderSampleTree(".projects-entry-list");
+    };
+  })(this));
+});
+
+//# sourceMappingURL=sample-tree-layout.js.map
+
+(function() {
+  var TreeViewStateCode, composeSampleAnalysisTree, findProjectEntry, toggleProjectTreeOpenCloseState;
+  TreeViewStateCode = {
+    open: "open",
+    closed: "closed"
+  };
+  composeSampleAnalysisTree = function(bundle) {
+    var analyses, analysis, analysisList, entry, id, name, sampleMap, sampleName, samples, trees;
+    samples = bundle.samples;
+    analyses = bundle.analyses;
+    if (samples == null) {
+      samples = {};
+    }
+    sampleMap = {};
+    for (name in samples) {
+      sampleMap[name] = [];
+    }
+    for (id in analyses) {
+      analysis = analyses[id];
+      sampleName = analysis.sample_name;
+      if (sampleMap[sampleName] == null) {
+        sampleMap[sampleName] = [];
+      }
+      sampleMap[sampleName].push(analysis);
+    }
+    trees = [];
+    for (name in sampleMap) {
+      analysisList = sampleMap[name];
+      entry = {
+        "sample": samples[name],
+        "analyses": _.sortBy(analysisList, "name")
+      };
+      trees.push(entry);
+    }
+    _.sortBy(trees, function(obj) {
+      return obj.sample.name;
+    });
+    return trees;
+  };
+  findProjectEntry = function(element) {
+    var i, isMatch, parent;
+    parent = element.parent();
+    isMatch = parent.hasClass("project-entry");
+    i = 0;
+    while (!isMatch && i < 100) {
+      i++;
+      parent = parent.parent();
+      isMatch = parent.hasClass("project-entry") || parent.prop("tagName") === "BODY";
+    }
+    return parent;
+  };
+  Application.prototype._makeSampleTree = function(tree) {
+    var analyses, analysis, analysisChunk, analysisChunks, cleanNamePattern, entry, expander, j, len, prefix, sample, suffix;
+    cleanNamePattern = /_/g;
+    sample = tree.sample;
+    analyses = tree.analyses;
+    analysisChunks = [];
+    if (analyses.length > 0) {
+      expander = "<span class=\"expanded-display-control indigo-text\">\n    <i class=\"material-icons\">check_box_outline_blank</i>\n</span>";
+    } else {
+      expander = "";
+    }
+    prefix = "<div class='project-entry'>\n    <div class=\"project-item\" data-uuid='" + sample.uuid + "'>\n        <span class='project-sample-name'>\n            " + expander + "\n            " + (sample.name.replace(cleanNamePattern, " ")) + "\n        </span>\n        <div class=\"analysis-entry-list\">";
+    for (j = 0, len = analyses.length; j < len; j++) {
+      analysis = analyses[j];
+      analysisChunk = "<div class='analysis-entry-item' data-uuid='" + analysis.uuid + "'>\n    <span class='project-analysis-name'>\n        " + (analysis.name.replace(" at " + sample.name, "").replace(cleanNamePattern, " ")) + "\n    </span>\n</div>";
+      analysisChunks.push(analysisChunk);
+    }
+    suffix = "        </div>\n    </div>\n</div>";
+    entry = [prefix, analysisChunks.join("\n"), suffix].join("\n");
+    return $(entry);
+  };
+  Application.prototype.renderSampleTree = function(container) {
+    var dataTag, element, entry, j, k, l, len, len1, len2, openClosed, pastState, ref, rendered, stateValue, tree, trees, uuid;
+    container = $(container);
+    pastState = {};
+    ref = container.find(".project-entry");
+    for (j = 0, len = ref.length; j < len; j++) {
+      element = ref[j];
+      element = $(element);
+      dataTag = element.find(".project-item");
+      uuid = dataTag.data("uuid");
+      stateValue = dataTag.data("state");
+      pastState[uuid] = stateValue != null ? stateValue : TreeViewStateCode.closed;
+    }
+    container.empty();
+    trees = composeSampleAnalysisTree(this);
+    rendered = [];
+    for (k = 0, len1 = trees.length; k < len1; k++) {
+      tree = trees[k];
+      entry = this._makeSampleTree(tree);
+      rendered.push(entry);
+    }
+    container.append(rendered);
+    for (l = 0, len2 = rendered.length; l < len2; l++) {
+      entry = rendered[l];
+      dataTag = entry.find(".project-item");
+      uuid = dataTag.data("uuid");
+      openClosed = pastState[uuid];
+      if (openClosed === "closed") {
+        toggleProjectTreeOpenCloseState(entry, openClosed);
+      }
+    }
+    return pastState;
+  };
+  toggleProjectTreeOpenCloseState = function(projectTree, state) {
+    var dataTag, handleList;
+    if (state == null) {
+      state = void 0;
+    }
+    handleList = projectTree.find(".analysis-entry-list");
+    dataTag = projectTree.find(".project-item");
+    if (state == null) {
+      if (handleList.is(":visible")) {
+        state = TreeViewStateCode.closed;
+      } else {
+        state = TreeViewStateCode.open;
+      }
+    }
+    if (state === TreeViewStateCode.open) {
+      handleList.show();
+      projectTree.find(".expanded-display-control .material-icons").text("check_box_outline_blank");
+      return dataTag.data("state", TreeViewStateCode.open);
+    } else {
+      handleList.hide();
+      projectTree.find(".expanded-display-control .material-icons").text("add_box");
+      return dataTag.data("state", TreeViewStateCode.closed);
+    }
+  };
+  $(function() {
+    $("body").on("click", ".projects-entry-list .analysis-entry-item", function(event) {
+      var handle, id, target;
+      target = this;
+      GlycReSoft.invalidate();
+      handle = $(target);
+      id = handle.data('uuid');
+      if (GlycReSoft.getShowingLayer().name !== ActionLayerManager.HOME_LAYER) {
+        GlycReSoft.removeCurrentLayer();
+      }
+      GlycReSoft.addLayer(ActionBook.viewAnalysis, {
+        analysis_id: id
+      });
+      console.log(GlycReSoft.layers);
+      console.log(GlycReSoft.lastAdded);
+      GlycReSoft.context["analysis_id"] = id;
+      return GlycReSoft.setShowingLayer(GlycReSoft.lastAdded);
+    });
+    return $("body").on("click", ".project-entry .expanded-display-control", function(event) {
+      var parent, target;
+      target = $(event.currentTarget);
+      parent = findProjectEntry(target);
+      return toggleProjectTreeOpenCloseState(parent);
+    });
+  });
+  return Application.initializers.push(function() {
+    this.on("render-samples", (function(_this) {
+      return function() {
+        try {
+          return _this.renderSampleTree(".projects-entry-list");
+        } catch (_error) {}
+      };
+    })(this));
+    return this.on("render-analyses", (function(_this) {
+      return function() {
+        try {
+          return _this.renderSampleTree(".projects-entry-list");
+        } catch (_error) {}
+      };
+    })(this));
+  });
+})();
+
+//# sourceMappingURL=sample-tree-ui.js.map
+
+Application.prototype.renderSampleListAt = function(container) {
+  var chunks, i, len, ref, row, sample, sampleStatusDisplay, self;
+  chunks = [];
+  self = this;
+  ref = _.sortBy(_.values(this.samples), function(o) {
+    return o.name;
+  });
+  for (i = 0, len = ref.length; i < len; i++) {
+    sample = ref[i];
+    row = $("<div data-name=" + sample.name + " class='list-item sample-entry clearfix' data-uuid='" + sample.uuid + "'> <span class='handle user-provided-name'>" + (sample.name.replace(/_/g, ' ')) + "</span> <small class='right' style='display:inherit'> " + sample.sample_type + " <span class='status-indicator'></span> <!-- <a class='remove-sample mdi mdi-close'></a> --> </small> </div>");
+    sampleStatusDisplay = row.find(".status-indicator");
+    if (!sample.completed) {
+      sampleStatusDisplay.html("<small class='yellow-text'>(Incomplete)</small>");
+    }
+    chunks.push(row);
+    row.click(function(event) {
+      var handle, layer, uuid;
+      handle = $(this);
+      uuid = handle.attr("data-uuid");
+      self.addLayer(ActionBook.viewSample, {
+        "sample_id": uuid
+      });
+      layer = self.lastAdded;
+      return self.setShowingLayer(layer);
+    });
+    row.find(".remove-sample").click(function(event) {
+      var handle;
+      handle = $(this);
+      return console.log(handle);
+    });
+  }
   return $(container).html(chunks);
 };
 
@@ -973,56 +2005,86 @@ Application.initializers.push(function() {
 
 //# sourceMappingURL=sample-ui.js.map
 
-var viewGlycanCompositionHypothesis;
+var GlycanCompositionHypothesisController, GlycanCompositionHypothesisPaginator,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
+  extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
+  hasProp = {}.hasOwnProperty;
 
-viewGlycanCompositionHypothesis = function(hypothesisId) {
-  var currentPage, detailModal, displayTable, setup, setupGlycanCompositionTablePageHandler, updateCompositionTablePage;
-  detailModal = void 0;
-  displayTable = void 0;
-  currentPage = 1;
-  setup = function() {
-    displayTable = $("#composition-table-container");
-    return updateCompositionTablePage(1);
-  };
-  setupGlycanCompositionTablePageHandler = function(page) {
+GlycanCompositionHypothesisPaginator = (function(superClass) {
+  extend(GlycanCompositionHypothesisPaginator, superClass);
+
+  GlycanCompositionHypothesisPaginator.prototype.tableSelector = "#composition-table-container";
+
+  GlycanCompositionHypothesisPaginator.prototype.tableContainerSelector = "#composition-table-container";
+
+  GlycanCompositionHypothesisPaginator.prototype.rowSelector = "#composition-table-container tbody tr";
+
+  GlycanCompositionHypothesisPaginator.prototype.pageUrl = "/view_glycan_composition_hypothesis/{hypothesisId}/{page}";
+
+  function GlycanCompositionHypothesisPaginator(hypothesisId, handle, controller) {
+    this.hypothesisId = hypothesisId;
+    this.handle = handle;
+    this.controller = controller;
+    this.rowClickHandler = bind(this.rowClickHandler, this);
+    GlycanCompositionHypothesisPaginator.__super__.constructor.call(this, 1);
+  }
+
+  GlycanCompositionHypothesisPaginator.prototype.getPageUrl = function(page) {
     if (page == null) {
       page = 1;
     }
-    $('.display-table tbody tr').click(function() {});
-    $(':not(.disabled) .next-page').click(function() {
-      return updateCompositionTablePage(page + 1);
-    });
-    $(':not(.disabled) .previous-page').click(function() {
-      return updateCompositionTablePage(page - 1);
-    });
-    return $('.pagination li :not(.active)').click(function() {
-      var nextPage;
-      nextPage = $(this).attr("data-index");
-      if (nextPage != null) {
-        nextPage = parseInt(nextPage);
-        return updateCompositionTablePage(nextPage);
-      }
+    return this.pageUrl.format({
+      "page": page,
+      "hypothesisId": this.hypothesisId
     });
   };
-  updateCompositionTablePage = function(page) {
+
+  GlycanCompositionHypothesisPaginator.prototype.rowClickHandler = function(row) {
+    return console.log(row);
+  };
+
+  return GlycanCompositionHypothesisPaginator;
+
+})(PaginationBase);
+
+GlycanCompositionHypothesisController = (function() {
+  GlycanCompositionHypothesisController.prototype.containerSelector = '#glycan-composition-hypothesis-container';
+
+  GlycanCompositionHypothesisController.prototype.saveTxtURL = "/view_glycan_composition_hypothesis/{hypothesisId}/download-text";
+
+  function GlycanCompositionHypothesisController(hypothesisId) {
+    this.hypothesisId = hypothesisId;
+    this.handle = $(this.containerSelector);
+    this.paginator = new GlycanCompositionHypothesisPaginator(this.hypothesisId, this.handle, this);
+    this.setup();
+  }
+
+  GlycanCompositionHypothesisController.prototype.setup = function() {
+    var self;
+    self = this;
+    this.paginator.setupTable();
+    return this.handle.find("#save-text-btn").click(function() {
+      return self.downloadTxt();
+    });
+  };
+
+  GlycanCompositionHypothesisController.prototype.downloadTxt = function() {
     var url;
-    if (page == null) {
-      page = 1;
-    }
-    url = "/view_glycan_composition_hypothesis/" + hypothesisId + "/" + page;
-    console.log(url);
-    return GlycReSoft.ajaxWithContext(url).success(function(doc) {
-      currentPage = page;
-      displayTable.html(doc);
-      return setupGlycanCompositionTablePageHandler(page);
+    url = this.saveTxtURL.format({
+      "hypothesisId": this.hypothesisId
+    });
+    return $.get(url).then(function(payload) {
+      return GlycReSoft.downloadFile(payload.filenames[0]);
     });
   };
-  return setup();
-};
+
+  return GlycanCompositionHypothesisController;
+
+})();
 
 //# sourceMappingURL=view-glycan-composition-hypothesis.js.map
 
-var GlycanCompositionLCMSSearchController, GlycanCompositionLCMSSearchPaginator, GlycanCompositionLCMSSearchTabView,
+var GlycanCompositionLCMSSearchController, GlycanCompositionLCMSSearchPaginator, GlycanCompositionLCMSSearchTabView, GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
@@ -1061,6 +2123,43 @@ GlycanCompositionLCMSSearchPaginator = (function(superClass) {
   };
 
   return GlycanCompositionLCMSSearchPaginator;
+
+})(PaginationBase);
+
+GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator = (function(superClass) {
+  extend(GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator, superClass);
+
+  GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.prototype.pageUrl = "/view_glycan_lcms_analysis/{analysisId}/page_unidentified/{page}";
+
+  GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.prototype.tableSelector = ".unidentified-chromatogram-table";
+
+  GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.prototype.tableContainerSelector = "#unidentified-chromatograms-table";
+
+  GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.prototype.rowSelector = ".unidentified-row";
+
+  function GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator(analysisId, handle1, controller) {
+    this.analysisId = analysisId;
+    this.handle = handle1;
+    this.controller = controller;
+    this.rowClickHandler = bind(this.rowClickHandler, this);
+    GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.__super__.constructor.call(this, 1);
+  }
+
+  GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.prototype.getPageUrl = function(page) {
+    if (page == null) {
+      page = 1;
+    }
+    return this.pageUrl.format({
+      "page": page,
+      "analysisId": this.analysisId
+    });
+  };
+
+  GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator.prototype.rowClickHandler = function(row) {
+    return this.controller.showUnidentifiedDetailsModal(row);
+  };
+
+  return GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator;
 
 })(PaginationBase);
 
@@ -1103,6 +2202,8 @@ GlycanCompositionLCMSSearchController = (function() {
 
   GlycanCompositionLCMSSearchController.prototype.detailUrl = "/view_glycan_lcms_analysis/{analysisId}/details_for/{chromatogramId}";
 
+  GlycanCompositionLCMSSearchController.prototype.detailUnidentifiedUrl = "/view_glycan_lcms_analysis/{analysisId}/details_for_unidentified/{chromatogramId}";
+
   GlycanCompositionLCMSSearchController.prototype.saveCSVURL = "/view_glycan_lcms_analysis/{analysisId}/to-csv";
 
   GlycanCompositionLCMSSearchController.prototype.monosaccharideFilterContainerSelector = '#monosaccharide-filters';
@@ -1117,17 +2218,20 @@ GlycanCompositionLCMSSearchController = (function() {
       "Fuc": 10,
       "Neu5Ac": 10
     };
+    this.showExportMenu = bind(this.showExportMenu, this);
     this.handle = $(this.containerSelector);
     this.paginator = new GlycanCompositionLCMSSearchPaginator(this.analysisId, this.handle, this);
+    this.unidentifiedPaginator = new GlycanCompositionLCMSSearchUnidentifiedChromatogramPaginator(this.analysisId, this.handle, this);
     updateHandlers = [
       (function(_this) {
         return function() {
-          return _this.paginator.setupTable();
+          _this.paginator.setupTable();
+          return _this.unidentifiedPaginator.setupTable();
         };
       })(this), (function(_this) {
         return function() {
           var handle;
-          handle = $(_this.tabView.containerSelector);
+          handle = _this.find(_this.tabView.containerSelector);
           $.get("/view_glycan_lcms_analysis/" + _this.analysisId + "/chromatograms_chart").success(function(payload) {
             return handle.find("#chromatograms-plot").html(payload);
           });
@@ -1141,25 +2245,65 @@ GlycanCompositionLCMSSearchController = (function() {
     this.setup();
   }
 
+  GlycanCompositionLCMSSearchController.prototype.find = function(selector) {
+    return this.handle.find(selector);
+  };
+
   GlycanCompositionLCMSSearchController.prototype.setup = function() {
     var filterContainer, self;
     this.handle.find(".tooltipped").tooltip();
     self = this;
+    this.handle.find("#omit_used_as_adduct").prop("checked", GlycReSoft.settings.omit_used_as_adduct);
+    this.handle.find("#omit_used_as_adduct").change(function(event) {
+      var handle, isChecked;
+      handle = $(this);
+      isChecked = handle.prop("checked");
+      GlycReSoft.settings.omit_used_as_adduct = isChecked;
+      return GlycReSoft.emit("update_settings");
+    });
+    this.handle.find("#end_time").val(GlycReSoft.settings.end_time);
+    this.handle.find("#end_time").change(function(event) {
+      var handle, value;
+      handle = $(this);
+      value = parseFloat(handle.val());
+      if (isNaN(value) || (value == null)) {
+        value = Infinity;
+      }
+      GlycReSoft.settings.end_time = value;
+      return GlycReSoft.emit("update_settings");
+    });
+    this.handle.find("#start_time").val(GlycReSoft.settings.start_time);
+    this.handle.find("#start_time").change(function(event) {
+      var handle, value;
+      handle = $(this);
+      value = parseFloat(handle.val());
+      if (isNaN(value) || (value == null)) {
+        value = 0;
+      }
+      GlycReSoft.settings.start_time = value;
+      return GlycReSoft.emit("update_settings");
+    });
     this.handle.find("#save-csv-btn").click(function(event) {
-      var url;
-      url = self.saveCSVURL.format({
-        analysisId: self.analysisId
-      });
-      return $.get(url).success(function(info) {
-        return GlycReSoft.downloadFile(info.filename);
-      });
+      return self.showExportMenu();
     });
     this.updateView();
-    filterContainer = $(this.monosaccharideFilterContainerSelector);
+    filterContainer = this.find(this.monosaccharideFilterContainerSelector);
     return GlycReSoft.monosaccharideFilterState.update(this.hypothesisUUID, (function(_this) {
       return function(bounds) {
         _this.monosaccharideFilter = new MonosaccharideFilter(filterContainer);
         return _this.monosaccharideFilter.render();
+      };
+    })(this));
+  };
+
+  GlycanCompositionLCMSSearchController.prototype.noResultsHandler = function() {
+    return $(this.tabView.containerSelector).html('<h5 class=\'red-text center\' style=\'margin: 50px;\'>\nYou don\'t appear to have any results to show. Your filters may be set too high. <br>\nTo lower your filters, please go to the Preferences menu in the upper right corner <br>\nof the screen and set the <code>"Minimum MS1 Score Filter"</code> to be lower and try again.<br>\n</h5>');
+  };
+
+  GlycanCompositionLCMSSearchController.prototype.showExportMenu = function() {
+    return $.get("/view_glycan_lcms_analysis/" + this.analysisId + "/export").success((function(_this) {
+      return function(formContent) {
+        return GlycReSoft.displayMessageModal(formContent);
       };
     })(this));
   };
@@ -1174,6 +2318,22 @@ GlycanCompositionLCMSSearchController = (function() {
     id = handle.attr('data-target');
     modal = this.getModal();
     url = this.detailUrl.format({
+      analysisId: this.analysisId,
+      chromatogramId: id
+    });
+    return $.get(url).success(function(doc) {
+      modal.find('.modal-content').html(doc);
+      $(".lean-overlay").remove();
+      return modal.openModal();
+    });
+  };
+
+  GlycanCompositionLCMSSearchController.prototype.showUnidentifiedDetailsModal = function(row) {
+    var handle, id, modal, url;
+    handle = $(row);
+    id = handle.attr('data-target');
+    modal = this.getModal();
+    url = this.detailUnidentifiedUrl.format({
       analysisId: this.analysisId,
       chromatogramId: id
     });
@@ -1435,7 +2595,7 @@ viewGlycopeptideHypothesis = function(hypothesisId) {
 
 //# sourceMappingURL=view-glycopeptide-hypothesis.js.map
 
-var GlycopeptideLCMSMSSearchController, GlycopeptideLCMSMSSearchPaginator, GlycopeptideLCMSMSSearchTabView, PlotGlycoformsManager, PlotManagerBase, SiteSpecificGlycosylationPlotManager,
+var GlycopeptideLCMSMSSearchController, GlycopeptideLCMSMSSearchPaginator, GlycopeptideLCMSMSSearchTabView, PlotChromatogramGroupManager, PlotGlycoformsManager, PlotManagerBase, SiteSpecificGlycosylationPlotManager,
   bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; },
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
@@ -1544,6 +2704,27 @@ PlotManagerBase = (function() {
 
 })();
 
+PlotChromatogramGroupManager = (function(superClass) {
+  extend(PlotChromatogramGroupManager, superClass);
+
+  PlotChromatogramGroupManager.prototype.plotUrl = "/view_glycopeptide_lcmsms_analysis/{analysisId}/{proteinId}/chromatogram_group";
+
+  function PlotChromatogramGroupManager(handle, controller) {
+    this.controller = controller;
+    PlotChromatogramGroupManager.__super__.constructor.call(this, handle);
+  }
+
+  PlotChromatogramGroupManager.prototype.getPlotUrl = function() {
+    return this.plotUrl.format({
+      "analysisId": this.controller.analysisId,
+      "proteinId": this.controller.proteinId
+    });
+  };
+
+  return PlotChromatogramGroupManager;
+
+})(PlotManagerBase);
+
 PlotGlycoformsManager = (function(superClass) {
   extend(PlotGlycoformsManager, superClass);
 
@@ -1576,12 +2757,16 @@ PlotGlycoformsManager = (function(superClass) {
   };
 
   PlotGlycoformsManager.prototype.modificationTooltipCallback = function(handle) {
-    var sequence, template, value;
+    var formattedGlycan, glycanComposition, glycopeptideId, sequence, template, value;
     template = '<div> <span>{value}</span> </div>';
     value = handle.parent().attr('data-modification-type');
-    if (value === 'HexNAc') {
-      sequence = $('#' + handle.parent().attr('data-parent')).attr('data-sequence');
-      value = 'HexNAc - Glycosylation: ' + sequence.split(/(\[|\{)/).slice(1).join('');
+    if (/Glycosylation/ig.test(value)) {
+      glycopeptideId = handle.parent().attr('data-parent');
+      sequence = $("g[data-record-id=\"" + glycopeptideId + "\"]").attr('data-sequence');
+      sequence = new PeptideSequence(sequence);
+      glycanComposition = sequence.glycan;
+      formattedGlycan = glycanComposition.format(GlycReSoft.colors);
+      value = (value + ": ") + formattedGlycan;
     }
     return template.format({
       'value': value
@@ -1594,15 +2779,19 @@ PlotGlycoformsManager = (function(superClass) {
     glycopeptide.customTooltip(this.glycopeptideTooltipCallback, 'protein-view-tooltip');
     self = this;
     glycopeptide.hover(function(event) {
-      var baseColor, handle, newColor;
-      handle = $(this);
+      var baseColor, handle, newColor, origTarget, recordId;
+      origTarget = $(this);
+      recordId = origTarget.attr("data-record-id");
+      handle = $("g[data-record-id=" + recordId + "]");
       baseColor = handle.find("path").css("fill");
       newColor = '#74DEC5';
       handle.data("baseColor", baseColor);
       return handle.find("path").css("fill", newColor);
     }, function(event) {
-      var handle;
-      handle = $(this);
+      var handle, origTarget, recordId;
+      origTarget = $(this);
+      recordId = origTarget.attr("data-record-id");
+      handle = $("g[data-record-id=" + recordId + "]");
       return handle.find("path").css("fill", handle.data("baseColor"));
     });
     glycopeptide.click(function(event) {
@@ -1661,6 +2850,8 @@ GlycopeptideLCMSMSSearchController = (function() {
 
   GlycopeptideLCMSMSSearchController.prototype.saveCSVURL = "/view_glycopeptide_lcmsms_analysis/{analysisId}/to-csv";
 
+  GlycopeptideLCMSMSSearchController.prototype.searchByScanIdUrl = "/view_glycopeptide_lcmsms_analysis/{analysisId}/search_by_scan/{scanId}";
+
   GlycopeptideLCMSMSSearchController.prototype.monosaccharideFilterContainerSelector = '#monosaccharide-filters';
 
   function GlycopeptideLCMSMSSearchController(analysisId, hypothesisUUID, proteinId1) {
@@ -1669,6 +2860,8 @@ GlycopeptideLCMSMSSearchController = (function() {
     this.hypothesisUUID = hypothesisUUID;
     this.proteinId = proteinId1;
     this.proteinChoiceHandler = bind(this.proteinChoiceHandler, this);
+    this.searchByScanId = bind(this.searchByScanId, this);
+    this.showExportMenu = bind(this.showExportMenu, this);
     this.handle = $(this.containerSelector);
     this.paginator = new GlycopeptideLCMSMSSearchPaginator(this.analysisId, this.handle, this);
     this.plotGlycoforms = new PlotGlycoformsManager(this.handle, this);
@@ -1698,26 +2891,36 @@ GlycopeptideLCMSMSSearchController = (function() {
     self = this;
     this.handle.find(".tooltipped").tooltip();
     console.log("Setting up Save Buttons");
-    this.handle.find("#save-csv-btn").click(function(event) {
-      var url;
+    this.handle.find("#save-result-btn").click(function(event) {
       console.log("Clicked Save Button");
-      url = self.saveCSVURL.format({
-        analysisId: self.analysisId
-      });
-      return $.get(url).success(function(info) {
-        return GlycReSoft.downloadFile(info.filename);
-      });
+      return self.showExportMenu();
+    });
+    this.handle.find("#search-by-scan-id").blur(function(event) {
+      console.log(this);
+      return self.searchByScanId(this.value.replace(/\s+$/g, ""));
     });
     proteinRowHandle.click(function(event) {
       return self.proteinChoiceHandler(this);
     });
     console.log("setup complete");
-    this.proteinChoiceHandler(proteinRowHandle[0]);
     filterContainer = $(this.monosaccharideFilterContainerSelector);
-    return GlycReSoft.monosaccharideFilterState.update(this.hypothesisUUID, (function(_this) {
+    GlycReSoft.monosaccharideFilterState.update(this.hypothesisUUID, (function(_this) {
       return function(bounds) {
         _this.monosaccharideFilter = new MonosaccharideFilter(filterContainer);
         return _this.monosaccharideFilter.render();
+      };
+    })(this));
+    if (proteinRowHandle[0] != null) {
+      return this.proteinChoiceHandler(proteinRowHandle[0]);
+    } else {
+      return this.noResultsHandler();
+    }
+  };
+
+  GlycopeptideLCMSMSSearchController.prototype.showExportMenu = function() {
+    return $.get("/view_glycopeptide_lcmsms_analysis/" + this.analysisId + "/export").success((function(_this) {
+      return function(formContent) {
+        return GlycReSoft.displayMessageModal(formContent);
       };
     })(this));
   };
@@ -1748,6 +2951,30 @@ GlycopeptideLCMSMSSearchController = (function() {
       "analysisId": this.analysisId,
       "proteinId": proteinId
     });
+  };
+
+  GlycopeptideLCMSMSSearchController.prototype.noResultsHandler = function() {
+    return $(this.tabView.containerSelector).html('<h5 class=\'red-text center\' style=\'margin: 50px;\'>\nYou don\'t appear to have any results to show. Your filters may be set too high. <br>\nTo lower your filters, please go to the Preferences menu in the upper right corner <br>\nof the screen and set the <code>"Minimum MS2 Score Filter"</code> to be lower and try again.<br>\n</h5>');
+  };
+
+  GlycopeptideLCMSMSSearchController.prototype.searchByScanId = function(scanId) {
+    var url;
+    if (!scanId) {
+      return;
+    }
+    url = this.searchByScanIdUrl.format({
+      "analysisId": this.analysisId,
+      "scanId": scanId
+    });
+    return $.get(url).success((function(_this) {
+      return function(doc) {
+        var modalHandle;
+        modalHandle = _this.getModal();
+        modalHandle.find('.modal-content').html(doc);
+        $(".lean-overlay").remove();
+        return modalHandle.openModal();
+      };
+    })(this));
   };
 
   GlycopeptideLCMSMSSearchController.prototype.proteinChoiceHandler = function(row) {

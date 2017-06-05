@@ -1,5 +1,5 @@
 <div class='row'>  
-    <div class='col s8'>
+    <div class='col s10'>
         <div class='table-container'>
             <table class='bordered display-table' style='width: 100%;'>
                 <thead>
@@ -7,7 +7,7 @@
                     <th></th>
                     <th class='very-wide'>Composition</th>
                     <th>Theoretical Mass</th>
-                    <th></th>
+                    <th class='wide'></th>
                     </tr>
                 </thead>
                 <tbody style='height:550px;'>
@@ -22,7 +22,7 @@
                         <td>
                             {{element.calculated_mass}}
                         </td>
-                        <td></td>
+                        <td class='wide'>{{element.structure_classes|join(", ", "name")}}</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -31,7 +31,7 @@
     </div>
 </div>
 <div class='row'>
-    <div class='col s5'>
+    <div class='col s8'>
     <ul class='pagination'>
         <li class={{"disabled" if paginator.page == 1 else ""}}>
             <a class='previous-page'>

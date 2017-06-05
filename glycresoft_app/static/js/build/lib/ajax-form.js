@@ -1,6 +1,11 @@
 var ajaxForm, setupAjaxForm;
 
-ajaxForm = function(formHandle, success, error, transform) {
+ajaxForm = function(formHandle, success, error, transform, progress) {
+  if (progress == null) {
+    (function(ev) {
+      return ev;
+    });
+  }
   return $(formHandle).on('submit', function(event) {
     var ajaxParams, data, encoding, handle, locked, method, url, wrappedError, wrappedSuccess;
     event.preventDefault();
@@ -15,6 +20,11 @@ ajaxForm = function(formHandle, success, error, transform) {
       locked = true;
       handle.data("locked", locked);
     }
+    if (error == null) {
+      error = function() {
+        return console.log(arguments);
+      };
+    }
     if (transform == null) {
       transform = function(form) {
         return new FormData(form);
@@ -26,13 +36,24 @@ ajaxForm = function(formHandle, success, error, transform) {
     encoding = handle.attr('enctype') || 'application/x-www-form-urlencoded; charset=UTF-8';
     wrappedSuccess = function(a, b, c) {
       handle.data("locked", false);
-      return success(a, b, c);
+      if (success != null) {
+        return success(a, b, c);
+      }
     };
     wrappedError = function(a, b, c) {
       handle.data("locked", false);
-      return error(a, b, c);
+      if (error != null) {
+        return error(a, b, c);
+      }
     };
     ajaxParams = {
+      'xhr': function() {
+        var xhr;
+        xhr = new window.XMLHttpRequest();
+        xhr.upload.addEventListener("progress", progress);
+        xhr.addEventListener("progress", progress);
+        return xhr;
+      },
       'url': url,
       'method': method,
       'data': data,

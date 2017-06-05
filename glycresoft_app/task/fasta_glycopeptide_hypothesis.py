@@ -9,20 +9,30 @@ from glycan_profiling.cli.build_db import _glycan_hypothesis_builders
 from glycan_profiling.database.builder.glycopeptide.naive_glycopeptide import (
     MultipleProcessFastaGlycopeptideHypothesisSerializer)
 
+from glycresoft_app.project import hypothesis as project_hypothesis
+
 from glycopeptidepy.structure.modification import RestrictedModificationTable
 
-from glycresoft_app.utils import json_serializer
 from .task_process import Task, Message
 
 
 def fasta_glycopeptide(database_connection, fasta_file, enzyme, missed_cleavages, occupied_glycosites, name,
                        constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
-                       channel):
+                       glycan_source_identifier, channel):
     context = None
-    validate_modifications(
-        context, constant_modification + variable_modification)
-    validate_glycan_source(context, database_connection,
-                           glycan_source, glycan_source_type)
+    try:
+        validate_modifications(
+            context, constant_modification + variable_modification)
+    except Exception:
+        channel.abort(
+            "Could not validate the modification specification, Constant: %s, Variable: %s" % (
+                constant_modification, variable_modification))
+    try:
+        validate_glycan_source(context, database_connection,
+                               glycan_source, glycan_source_type,
+                               glycan_source_identifier)
+    except Abort:
+        channel.abort("Could not validate the glycan source, %s, %s" % (glycan_source, glycan_source_type))
 
     if name is not None:
         name = validate_glycopeptide_hypothesis_name(
@@ -34,7 +44,7 @@ def fasta_glycopeptide(database_connection, fasta_file, enzyme, missed_cleavages
     variable_modification = [mt[c] for c in variable_modification]
 
     glycan_hypothesis_id = _glycan_hypothesis_builders[
-        glycan_source_type](database_connection, glycan_source, name)
+        glycan_source_type](database_connection, glycan_source, name, glycan_source_identifier)
 
     builder = MultipleProcessFastaGlycopeptideHypothesisSerializer(
         fasta_file, database_connection,
@@ -49,8 +59,17 @@ def fasta_glycopeptide(database_connection, fasta_file, enzyme, missed_cleavages
 
     try:
         builder.start()
-        channel.send(Message(json_serializer.handle_glycopeptide_hypothesis(
-            builder.hypothesis), "new-hypothesis"))
+        record = project_hypothesis.HypothesisRecordSet(database_connection)
+        hypothesis_record = None
+
+        for item in record:
+            if item.uuid == builder.hypothesis.uuid:
+                hypothesis_record = item
+                hypothesis_record = hypothesis_record._replace(user_id=channel.user.id)
+                channel.send(Message(hypothesis_record.to_json(), "new-hypothesis"))
+                break
+        else:
+            channel.send(Message("Something went wrong (%r)" % (list(record),)))
     except Exception:
         channel.send(Message.traceback())
 
@@ -58,9 +77,11 @@ def fasta_glycopeptide(database_connection, fasta_file, enzyme, missed_cleavages
 class BuildGlycopeptideHypothesisFasta(Task):
     def __init__(self, database_connection, fasta_file, enzyme, missed_cleavages, occupied_glycosites, name,
                  constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
+                 glycan_source_identifier,
                  callback=lambda: 0, **kwargs):
         args = (database_connection, fasta_file, enzyme, missed_cleavages, occupied_glycosites, name,
-                constant_modification, variable_modification, processes, glycan_source, glycan_source_type)
+                constant_modification, variable_modification, processes, glycan_source, glycan_source_type,
+                glycan_source_identifier)
         job_name = "Fasta Glycopeptide Hypothesis %s" % (name,)
         kwargs.setdefault('name', job_name)
         super(BuildGlycopeptideHypothesisFasta, self).__init__(fasta_glycopeptide, args, callback, **kwargs)

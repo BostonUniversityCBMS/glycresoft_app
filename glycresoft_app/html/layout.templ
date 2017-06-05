@@ -3,9 +3,11 @@
 <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <title></title>
-    <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='dist/css/bundle.css') }}">    
-    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">    
+    <title>GlycReSoft</title>
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static',filename='dist/css/bundle.css') }}">
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='dist/fonts/icons/material_icons.css') }}">
+    {# <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"> #}
+    <link rel="icon" type="img/png" href="{{ url_for('static', filename='logo.png') }}">
     <script src="{{ url_for('static',filename='dist/js/jquery.js') }}"></script>
     <script>
     /*
@@ -28,24 +30,51 @@
     <script src="{{ url_for('static',filename='dist/js/app-bundle.js') }}"></script>
     <script>
 
+
+$(function(){
+    if(window.ApplicationConfiguration === undefined){
+        window.ApplicationConfiguration = {
+            refreshTasksInterval: 25000,
+            upkeepInterval: 10000,
+        }
+        
+    }
+
+    window.GlycReSoft = new Application({
+        actionContainer: ".action-layer-container",
+        refreshTasksInterval: window.ApplicationConfiguration.refreshTasksInterval,
+        upkeepInterval: window.ApplicationConfiguration.upkeepInterval,
+    })
+
+    window.onerror = function(msg, url, line, col, error){
+        console.log(msg, url, line, col, error)
+        GlycReSoft.ajaxWithContext(ErrorLogURL, {
+            data: [msg, url, line, col, error]
+        })
+        return false
+    }
+    GlycReSoft.runInitializers()
+    GlycReSoft.updateSettings()
+    GlycReSoft.updateTaskList()
+    
+})
+
+ApplicationConfiguration = {
+    refreshTasksInterval: {{ configuration.refresh_task_interval or 25000}},
+    upkeepInterval: {{ configuration.upkeep_interval or 10000}},
+}
+
 $(function() {
     $(".side-nav").css('top', $('.nav-wrapper').innerHeight()).css("z-index", 3)
     $("#preferences-link").click(function(event){
         event.preventDefault()
         setupAjaxForm("/preferences", "#dialog-modal")
     })
-
-    var contentCenter = parseFloat($(".action-layer-container > :visible").css("margin-left"))
-    console.log(contentCenter, (contentCenter * .75) + 'px')
-    $(window).resize(function(){
-        contentCenter = parseFloat($(".action-layer-container > :visible").css("margin-left"))
-        console.log("Updated content left", contentCenter)
-        if(isNaN(contentCenter)){
-            contentCenter = 100.;
-        }
-        $(".toggle-sidebar").click()
-        $(".toggle-sidebar").click()    
+    $("#settings-link").click(function(event){
+        event.preventDefault()
+        setupAjaxForm("/server_settings", "#dialog-modal")
     })
+
     $(".toggle-sidebar").click(function(event){
         var handle = $(this)
         if(handle.attr('data-state') == 'open'){
@@ -58,50 +87,65 @@ $(function() {
             handle.removeClass("mdi-chevron-left")
             handle.addClass("mdi-chevron-right")
             
-            $("#left-sidebar").css("width", (contentCenter * .75) + 'px')
+            $("#left-sidebar").css("width", '14.9%')
             $("#sidebar-content").show()
             handle.attr('data-state', 'open')
         }
     })
     $(window).resize()
+
+    setInterval(clearTooltip, 16000);
 });
-
-
 
     </script>
 </head>
 <body>
     {% include "header.templ" %}
-    <div id='left-sidebar' class="side-nav fixed">
-    <a class='toggle-sidebar mdi mdi-chevron-right right' data-state='open' style='padding-top:10px;font-size:1.3em;'></a>
-    <div id='sidebar-content'>    
-        <div class='task-list-container'>
-            <h6>Tasks</h6>
-            <div class='divider'>
+    <div>
+        <div id='left-sidebar' class="side-nav fixed">
+        <a class='toggle-sidebar mdi mdi-chevron-right right' data-state='open' style='padding-top:10px;font-size:1.3em;'></a>
+            <div id='sidebar-content'>
+                <div id='user-display' style='margin-top:7px;'>
+                    {% if multiuser and is_logged_in %}
+                        User: {{user.name}}
+                    {% endif %}        
+                </div>
+                <div class='divider'>
+                </div>
+                <div class='task-list-container'>
+                    <h6>Tasks</h6>
+                    <div class='divider'>
+                    </div>
+                    <ul style="overflow-y: auto; max-height: 30%;">
+                    </ul>
+                </div>
+                <div class='project-item-list-container'>
+                    <h6>Projects</h6>
+                    <div class='divider'></div>
+                    <div class="projects-entry-list" style='overflow-y: auto; max-height: 70%;'>
+                    </div>
+                </div>
             </div>
-            <ul>
-            </ul>
         </div>
-    </div>
-    </div>
-    <div class='action-layer-container'>
-        <div id='home-layer' class='container'>
-            {% block body %}
-            {% endblock %}
-        </div>        
-    </div>
-    <div id="message-modal" class="modal">
-        <div class="modal-content">
+        <div class='action-layer-container'>
+            <div id='home-layer' class='container'>
+                {% block body %}
+                {% endblock %}
+            </div>        
         </div>
-        <div class="modal-footer">
-            <a href="#!" class=" modal-action modal-close waves-effect waves-green btn-flat">Dismiss</a>
+        <div id="message-modal" class="modal">
+            <div class="modal-content">
+            </div>
+            <div class="modal-footer">
+                <a href="#!" class=" modal-action modal-close waves-effect waves-green btn-flat">Dismiss</a>
+            </div>
         </div>
-    </div>
-    <div id="dialog-modal" class="modal wide">
-        <div class="modal-content">
-        </div>
-        <div class="modal-footer">
-            <a href="#!" class=" modal-action modal-close waves-effect waves-green btn-flat">Dismiss</a>
+        <div id="dialog-modal" class="modal wide">
+            <div class="modal-content">
+            </div>
+            <div class="modal-footer">
+                <a href="#!" class=" modal-action modal-close waves-effect waves-green btn-flat">Dismiss</a>
+            </div>
         </div>
     </div>
 <ul class='context-menu'>

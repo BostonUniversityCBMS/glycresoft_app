@@ -15,8 +15,15 @@ Protein Match Table
 */
 
 .protein-match-table th, .protein-match-table td {
-    min-width: 180px;
+    min-width: 120px;
     padding: 5px;
+}
+
+.protein-match-table th:first-child, .protein-match-table td:first-child {
+    min-width: 180px;
+    max-width: 180px;
+    word-break: break-all;
+    overflow-x: hidden;
 }
 
 .protein-match-table thead, .protein-match-table tbody {
@@ -46,7 +53,7 @@ Protein List Table
 */
 
 .protein-list-table {
-    width: 425px;
+    /*width: 425px;*/
 }
 
 .protein-list-table th, .protein-list-table td {

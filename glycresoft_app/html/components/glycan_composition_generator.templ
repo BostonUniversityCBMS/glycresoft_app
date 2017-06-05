@@ -1,20 +1,23 @@
-
-<div class='monosaccharide-composition-builder-container'>
-    <h5>Monosaccharides</h5>
-    <br>
-    <div class='monosaccharide-composition-range-grid'>
-        
+<div class='monosaccharide-composition-builder-container row'>
+    <div class='col s6'>
+        <h6 class='section-title'>Monosaccharides</h6>
+        <br>
+        <div class='monosaccharide-composition-range-grid'>
+            
+        </div>        
     </div>
-    <br>
-    <h5>Constraints</h5>
-    <div class='monosaccharide-composition-constraints'>
+    <div class='col s6'>
+        <h6 class='section-title'>Constraints</h6>
+        <br>
+        <div class='monosaccharide-composition-constraints'>
 
+        </div>
     </div>
 </div>
 <script>
     monosaccharideInputWidgetGrid = new MonosaccharideInputWidgetGrid(".monosaccharide-composition-range-grid")
-    monosaccharideInputWidgetGrid.addRow("Hex", 3, 12, "C6O6H12", true)
-    monosaccharideInputWidgetGrid.addRow("HexNAc", 2, 10, "C8O6H15N")
+    monosaccharideInputWidgetGrid.addRow("Hex", 3, 9, "C6O6H12", true)
+    monosaccharideInputWidgetGrid.addRow("HexNAc", 2, 8, "C8O6H15N")
     monosaccharideInputWidgetGrid.addRow("Fuc", 0, 4, "C6O5H12")
     monosaccharideInputWidgetGrid.addRow("NeuAc", 0, 4, "C11H17N1O8")
 
@@ -22,5 +25,6 @@
 
     constraintInputGrid = new ConstraintInputGrid(".monosaccharide-composition-constraints", monosaccharideInputWidgetGrid)
     constraintInputGrid.addRow("HexNAc", ">", "Fuc", true)
+    constraintInputGrid.addRow("HexNAc - 1", ">=", "NeuAc")
     constraintInputGrid.addEmptyRowOnEdit(false)
 </script>

@@ -1,64 +1,111 @@
 <div class='row'>
-    <h4>Glycan Search Space Building</h4>
+    <h4 class='section-title'>Glycan Search Space Building</h4>
 </div>
 <div class='row'>
     <form id='glycan-hypothesis-form' action="glycan_search_space" method="post" class="col s12" accept-charset="utf-8">
         <div class="row">
             <div class="input-field col s6">
-                <label for="hypothesis_name">Hypothesis Name</label>
+                <label for="hypothesis-name">Hypothesis Name</label>
                 <br>
-                <input id='hypothesis_name' name="hypothesis_name" type="text" class="validate">
+                <input id='hypothesis-name' name="hypothesis-name" type="text" class="validate" required>
             </div>
             <div class="input-field col s3">
-                <label for="reduction_type">Reduction Type</label>
+                <label for="reduction-type">Reduction Type</label>
                 <br>
-                <select id='reduction_type' class='browser-default' name="reduction_type">
+                <select id='reduction-type' class='browser-default' name="reduction-type">
                     <option value='native' selected>Native</option>
                     <option value='reduced'>Reduced</option>
                     <option value='deuteroreduced'>Deuteroreduced</option>
                 </select>
-                <input type='text' id='custom_reduction_type' name='custom_reduction_type'
+                <input type='text' id='custom-reduction-type' name='custom-reduction-type'
                  placeholder="Custom Reduction (Formula)" />
             </div>
             <div class="input-field col s3">
-                <label for="derivatization_type">Derivatization Type</label>
+                <label for="derivatization-type">Derivatization Type</label>
                 <br>
-                <select id='derivatization_type' class='browser-default' name="derivatization_type">
+                <select id='derivatization-type' class='browser-default' name="derivatization-type">
                     <option value='native' selected>Native</option>
                     <option value='permethylated'>Permethylated</option>
                 </select>
-                <input type='text' id='custom_derivatization_type' name='custom_derivatization_type'
+                <input type='text' id='custom-derivatization-type' name='custom-derivatization-type'
                  placeholder="Custom Substituent (Name or Formula)" />
             </div>
+            <input name='selected-method' id='selected-method' type='hidden' value='null'>
         </div>
+
         <div class='row'>
-            <div class='col s3'>
-                <h6>Use a Pre-Generated Curated Database:</h6>
-                <p>
-                    <input disabled class="with-gap" name="glycomedb-human-n-glycan" type="checkbox" id="glycomedb-human-n-glycan"/>    
-                    <label for='glycomedb-human-n-glycan'>Human N-linked glycan</label>
-                    <input disabled class="with-gap" name="glycomedb-human-o-glycan" type="checkbox" id="glycomedb-human-o-glycan"/>    
-                    <label for='glycomedb-human-o-glycan'>Human O-linked glycan</label>
-                    <input disabled class="with-gap" name="glycomedb-mammlian-n-glycan" type="checkbox" id="glycomedb-mammlian-n-glycan"/>    
-                    <label for='glycomedb-mammlian-n-glycan'>Mammalian N-linked glycan</label>
-                    <input disabled class="with-gap" name="glycomedb-mammlian-o-glycan" type="checkbox" id="glycomedb-mammlian-o-glycan"/>    
-                    <label for='glycomedb-mammlian-o-glycan'>Mammalian O-linked glycan</label>
-                </p>
+            <div class='col s12'>
+                <ul class='tabs indigo-text'>
+                    <li class='tab col s3'>
+                        <a class='indigo-text' class="active" href="#pregenerated">Pregenerated Database</a>
+                    </li>
+                    <li class='tab col s3'>
+                        <a class='indigo-text' href="#combinatorial">Combinatorial Hypothesis</a>
+                    </li>
+                    <li class='tab col s3'>
+                        <a class='indigo-text' href="#text-file">Hypothesis from a Text File</a>
+                    </li>
+                    <li class='tab col s3'>
+                        <a class='indigo-text' href="#merge-hypotheses">Merge Two Hypotheses</a>
+                    </li>
+                </ul>
             </div>
-            <div class='col s5'>
-                <h6>Create a Combinatorial Search Space:</h6>
-                {% include  "components/glycan_composition_generator.templ" %}
-            </div>
-            <div class="col s4">
-                <h6>Read Glycan Composition From Text File:</h6>
-                <div class="file-field input-field">
-                    <div class="btn">
-                        <span>Select File...</span>
-                        <input name='glycan-list-file' id='glycan-list-file' type="file"/>
-                    </div>
-                    <input class="file-path validate" type="text"/>
-                    <input type='hidden' name='glycomics-file-type' id="glycomics-file-type" />
+            <div class='row' id='pregenerated'>
+                <div class='col s5'>
+                    <h5>Use a Pre-Generated Curated Database:</h5>
+                    <p>
+                        <input disabled class="with-gap" name="glycomedb-human-n-glycan" type="checkbox" id="glycomedb-human-n-glycan"/>    
+                        <label for='glycomedb-human-n-glycan'>Human N-linked glycan</label><br>
+                        <input disabled class="with-gap" name="glycomedb-human-o-glycan" type="checkbox" id="glycomedb-human-o-glycan"/>    
+                        <label for='glycomedb-human-o-glycan'>Human O-linked glycan</label><br>
+                        <input disabled class="with-gap" name="glycomedb-mammlian-n-glycan" type="checkbox" id="glycomedb-mammlian-n-glycan"/>    
+                        <label for='glycomedb-mammlian-n-glycan'>Mammalian N-linked glycan</label><br>
+                        <input disabled class="with-gap" name="glycomedb-mammlian-o-glycan" type="checkbox" id="glycomedb-mammlian-o-glycan"/>    
+                        <label for='glycomedb-mammlian-o-glycan'>Mammalian O-linked glycan</label><br>
+                    </p>
                 </div>
+            </div>
+            <div class='row' id='combinatorial'>
+                <div class='col s12'>
+                    <h5>Create a Combinatorial Search Space:</h5>
+                    <b>Note: This process can only produce <em>N</em>-glycans at this time</b>
+                    {% include  "components/glycan_composition_generator.templ" %}
+                </div>
+            </div>
+            <div class='row' id='text-file'>
+                <div class="col s6">
+                    <h5>Read Glycan Composition From Text File:</h5>
+                    <div class="file-field input-field">
+                        <div class="btn">
+                            <span>Select File...</span>
+                            <input name='glycan-list-file' id='glycan-list-file' type="file"/>
+                        </div>
+                        <input class="file-path validate" type="text"/>
+                        <input type='hidden' name='glycomics-file-type' id="glycomics-file-type" />
+                    </div>
+                </div>            
+            </div>
+            <div class='row' id='merge-hypotheses'>
+                <div class='col s12'>
+                    <h5>Merge Existing Glycan Hypotheses</h5>
+                    <div class='hypothesis-merger-container row'>
+                        <div class="col s4">
+                            <select class='browser-default' name='merged-hypothesis-1'>
+                                {% for hypothesis in manager.glycan_hypotheses(user) %}
+                                    <option value="{{hypothesis.uuid}}">{{hypothesis.name}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class='col s1'>&nbsp;</div>
+                        <div class="col s4">
+                            <select class='browser-default' name='merged-hypothesis-2'>
+                                {% for hypothesis in manager.glycan_hypotheses(user) %}
+                                    <option value="{{hypothesis.uuid}}">{{hypothesis.name}}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                </div>            
             </div>
         </div>
         <button class='btn wave-effect'>
@@ -67,6 +114,7 @@
     </form>
 </div>
 <script>
+(function(){
 ajaxForm($("form#glycan-hypothesis-form"), function(){
     var currentAction = GlycReSoft.getShowingLayer()
     GlycReSoft.setShowingLayer("home-layer")
@@ -74,5 +122,32 @@ ajaxForm($("form#glycan-hypothesis-form"), function(){
 }, function(err){
     console.log(arguments)
 })
+
+$("#glycan-hypothesis-form .tabs").tabs();
+$("#glycan-hypothesis-form .tabs").tabs('select_tab', 'combinatorial');
+setSelectedMethod("#combinatorial")
+$("#glycan-hypothesis-form .tabs .indicator").addClass("indigo");
+$("#glycan-hypothesis-form .tabs").click("li.tab", function(e){
+    setSelectedMethod($(e.target).attr("href"))
+    $("#glycan-hypothesis-form .tabs .indicator").addClass("indigo")
+})
+
 materialFileInput()
+
+function setSelectedMethod(method){
+    $("#glycan-hypothesis-form #selected-method").val(method.slice(1))
+}
+
+var glycanHypotheses = {}
+_.forIn(GlycReSoft.hypotheses, function(hypothesis){
+    if(hypothesis.hypothesis_type === "Glycan Hypothesis"){
+        glycanHypotheses[hypothesis.name] = hypothesis.id
+    }
+})
+var selectHandles = $(".hypothesis-merger-container select")
+selectHandles.append($("<option value=\"0\">Select A Hypothesis To Combine</option>"))
+_.forIn(glycanHypotheses, function(value, key){
+    selectHandles.append($("<option value=" + value + ">" + key + "</option>"))
+})
+})()
 </script>  

@@ -13,22 +13,16 @@
       keys = Object.keys(arguments);
     }
     res = this.replace(/\{([^\}]*)\}/g, function(placeholder, name, position) {
-      var err, v;
+      var v;
       if (name === '') {
         name = keys[i];
         i++;
       }
-      try {
-        v = JSON.stringify(data[name]);
-        if (v.startsWith('"') && v.endsWith('"')) {
-          v = v.slice(1, -1);
-        }
-        return v;
-      } catch (_error) {
-        err = _error;
-        console.log(err, name, data);
-        return void 0;
+      v = JSON.stringify(data[name]);
+      if (v.startsWith('"') && v.endsWith('"')) {
+        v = v.slice(1, -1);
       }
+      return v;
     });
     return res;
   };

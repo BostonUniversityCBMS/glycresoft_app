@@ -5,17 +5,17 @@
 class MonosaccharideInputWidgetGrid
     template: """
     <div class='monosaccharide-row row'>
-        <div class='input-field col s3'>
-            <label for='mass_shift_name'>Monosaccharide Name</label>
-            <input class='monosaccharide-name' type='text' name='monosaccharide_name' placeholder='Name'>
+        <div class='input-field col s2'>
+            <label for='mass_shift_name'>Residue Name</label>
+            <input class='monosaccharide-name center-align' type='text' name='monosaccharide_name' placeholder='Name'>
         </div>
-        <div class='input-field col s3'>
+        <div class='input-field col s2'>
             <label for='monosaccharide_mass_delta'>Lower Bound</label>
-            <input class='lower-bound numeric-entry' type='number' name='monosaccharide_lower_bound' placeholder='Lower Bound'>
+            <input class='lower-bound numeric-entry' min='0' type='number' name='monosaccharide_lower_bound' placeholder='Bound'>
         </div>
-        <div class='input-field col s3'>
+        <div class='input-field col s2'>
             <label for='monosaccharide_max_count'>Upper Bound</label>    
-            <input class='upper-bound numeric-entry' type='number' min='0' placeholder='Upper Bound' name='monosaccharide_upper_bound'>
+            <input class='upper-bound numeric-entry' type='number' min='0' placeholder='Bound' name='monosaccharide_upper_bound'>
         </div>
     </div>
     """
@@ -29,7 +29,6 @@ class MonosaccharideInputWidgetGrid
         monosaccharides = {}
         for row in @container.find(".monosaccharide-row")
             row = $(row)
-            console.log(row)
             entry = {
                 name: row.find(".monosaccharide-name").val()
                 lower_bound: row.find(".lower-bound").val()
@@ -37,20 +36,58 @@ class MonosaccharideInputWidgetGrid
                 # composition: row.find(".monosaccharide-composition").val()
             }
             if entry.name == ""
+                # The empty row is never an error
+                row.removeClass "warning"
+                if row.data("tinyNotification")?
+                    notif = row.data("tinyNotification")
+                    notif.dismiss()
+                    row.data("tinyNotification", undefined)
                 continue
             if entry.name of monosaccharides
+                # A duplicate row is always an error
                 row.addClass "warning"
-                notify = new TinyNotification(0, 0, "This monosaccharide is already present.", row)
+                pos = row.position()
+                if row.data("tinyNotification")?
+                    notif = row.data("tinyNotification")
+                    notif.dismiss()
+                notify = new TinyNotification(pos.top + 50, pos.left, "This residue is already present.", row)
                 row.data("tinyNotification", notify)
-                console.log(notify)
             else
+                # At this point, the row isn't a duplicate
                 row.removeClass "warning"
                 if row.data("tinyNotification")?
                     notif = row.data("tinyNotification")
                     notif.dismiss()
                     row.data("tinyNotification", undefined)
                 monosaccharides[entry.name] = entry
-        console.log(monosaccharides)
+                # Validate that the residue name is parsable. Use a continuation
+                # function to isolate the DOM row.
+                continuation = (gridRow) ->
+                    $.post("/api/validate-iupac", {"target_string": entry.name}).then (validation, message, query) ->
+
+                        if validation.valid
+                            # The name must be valid, but may be a duplicate
+                            if not (entry.name of monosaccharides)
+                                # If not a duplicate, then remove all error
+                                # states
+                                gridRow.removeClass "warning"
+                                if gridRow.data("tinyNotification")?
+                                    notif = gridRow.data("tinyNotification")
+                                    notif.dismiss()
+                                    gridRow.data("tinyNotification", undefined)
+                        else
+                            # Otherwise, this is not a reasonable name, so
+                            # set an error state
+                            gridRow.addClass "warning"
+                            pos = gridRow.position()
+                            if gridRow.data("tinyNotification")?
+                                notif = gridRow.data("tinyNotification")
+                                notif.dismiss()
+                            notify = new TinyNotification(pos.top + 50, pos.left, validation.message, gridRow)
+                            gridRow.data("tinyNotification", notify)
+                continuation(row)
+
+
         @monosaccharides = monosaccharides
 
     addEmptyRowOnEdit: (addHeader=false) ->
@@ -78,19 +115,18 @@ class MonosaccharideInputWidgetGrid
         # row.find(".monosaccharide-composition").val(composition)
         @container.append(row)
         row.find("input").change => @update()
-        console.log(row)
         @update()
 
 
 class ConstraintInputGrid
     template: """
     <div class="monosaccharide-constraints-row row">
-        <div class='input-field col s4'>
-            <label for='left_hand_side'>Name</label>
-            <input class='monosaccharide-name' type='text' name='left_hand_side' placeholder='Name'>
+        <div class='input-field col s2'>
+            <label for='left_hand_side'>Limit</label>
+            <input class='monosaccharide-name center-align' type='text' name='left_hand_side' placeholder='Name'>
         </div>
-        <div class='input-field col s1' style='padding-left: 2px;padding-right: 2px;'>
-            <select class='browser-default' name='operator'>
+        <div class='input-field col s2' style='padding-left: 2px;padding-right: 2px;'>
+            <select class='browser-default center-align' name='operator'>
                 <option>=</option>
                 <option>!=</option>
                 <option>&gt;</option>
@@ -99,9 +135,9 @@ class ConstraintInputGrid
                 <option>&lt;=</option>
             </select>
         </div>
-        <div class='input-field col s4'>
-            <label for='right_hand_side'>Name/Value</label>
-            <input class='monosaccharide-name' type='text' name='right_hand_side' placeholder='Name/Value'>
+        <div class='input-field col s4 constrained-value-cell'>
+            <label for='right_hand_side'>Constrained Value</label>
+            <input class='monosaccharide-name constrained-value' type='text' name='right_hand_side' placeholder='Name/Value'>
         </div>
     </div>
     """
@@ -143,39 +179,17 @@ class ConstraintInputGrid
         constraints = []
         for row in @container.find(".monosaccharide-constraints-row")
             row = $(row)
+
             console.log(row)
             entry = {
                 lhs: row.find("input[name='left_hand_side']").val()
                 operator: row.find("select[name='operator']").val()
                 rhs: row.find("input[name='right_hand_side']").val()
             }
+
             if entry.lhs == "" or entry.rhs == ""
                 continue
-            # getMonosaccharide = (name) ->
-            #     console.log("getMonosaccharide", name)
-            #     /^(\d+)(.+)/.exec(name)[2]
-            # if not (getMonosaccharide(entry.lhs) of @monosaccharideGrid.monosaccharides)
-            #     row.addClass "warning"
-            #     notify = new TinyNotification(0, 0, "#{entry.lhs} is not defined.", row)
-            #     row.data("tinyNotification", notify)
-            #     console.log(notify)
 
-            # else if not (getMonosaccharide(entry.rhs) of @monosaccharideGrid.monosaccharides)
-            #     row.addClass("warning")
-            #     # In case we fall through from a previous error state in the lhs
-            #     if row.data("tinyNotification")?
-            #         notif = row.data("tinyNotification")
-            #         notif.dismiss()
-            #         row.data("tinyNotification", undefined)
-            #     notify = new TinyNotification(0, 0, "#{entry.rhs} is not defined.", row)
-            #     row.data("tinyNotification", notify)
-            #     console.log(notify)
-            # else
-            #     row.removeClass("warning")
-            #     if row.data("tinyNotification")?
-            #         notif = row.data("tinyNotification")
-            #         notif.dismiss()
-            #         row.data("tinyNotification", undefined)
             constraints.push(entry)
         console.log(constraints)
         @constraints = constraints

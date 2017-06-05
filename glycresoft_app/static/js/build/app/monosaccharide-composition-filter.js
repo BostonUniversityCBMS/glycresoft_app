@@ -63,7 +63,7 @@ MonosaccharideFilterState = (function() {
     console.log(hypothesisUUID, this.hypothesisUUID);
     if (hypothesisUUID !== this.hypothesisUUID) {
       console.log("Is New Hypothesis");
-      return Hypothesis.get(hypothesisUUID, (function(_this) {
+      return HypothesisAPI.get(hypothesisUUID, (function(_this) {
         return function(result) {
           var hypothesis;
           hypothesis = result.hypothesis;
@@ -77,6 +77,11 @@ MonosaccharideFilterState = (function() {
       this.setApplicationFilter();
       return callback(this.bounds);
     }
+  };
+
+  MonosaccharideFilterState.prototype.invalidate = function() {
+    this.setHypothesis(null);
+    return this.setApplicationFilter();
   };
 
   return MonosaccharideFilterState;
@@ -113,7 +118,7 @@ MonosaccharideFilter = (function() {
       this.rules[residue] = rule;
     }
     residue.name = residue;
-    residue.sanitizeName = sanitizeName = residue.replace(/[\(\),]/g, "_");
+    residue.sanitizeName = sanitizeName = residue.replace(/[\(\),#.@\^]/g, "_");
     template = "<span class=\"col s2 monosaccharide-filter\" data-name='" + residue + "'>\n    <p style='margin: 0px; margin-bottom: -10px;'>\n        <input type=\"checkbox\" id=\"" + sanitizeName + "_include\" name=\"" + sanitizeName + "_include\"/>\n        <label for=\"" + sanitizeName + "_include\"><b>" + residue + "</b></label>\n    </p>\n    <p style='margin-top: 0px; margin-bottom: 0px;'>\n        <input id=\"" + sanitizeName + "_min\" type=\"number\" placeholder=\"Minimum " + residue + "\" style='width: 45px;' min=\"0\"\n               value=\"" + rule.minimum + "\" max=\"" + rule.maximum + "\" name=\"" + sanitizeName + "_min\"/> : \n        <input id=\"" + sanitizeName + "_max\" type=\"number\" placeholder=\"Maximum " + residue + "\" style='width: 45px;' min=\"0\"\n               value=\"" + rule.maximum + "\" name=\"" + sanitizeName + "_max\"/>\n    </p>\n</span>";
     self = this;
     rendered = $(template);

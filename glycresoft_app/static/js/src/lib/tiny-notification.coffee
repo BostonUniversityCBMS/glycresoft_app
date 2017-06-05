@@ -2,7 +2,7 @@ class TinyNotification
     template: """
     <div class='notification-container'>
         <div class='clearfix dismiss-container'>
-            <a class='dismiss-notification mdi-content-clear'></a>
+            <a class='dismiss-notification mdi mdi-close'></a>
         </div>
         <div class='notification-content'>
         </div>

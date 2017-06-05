@@ -5,8 +5,13 @@ Monosaccharide Grid
 */
 
 
+.monosaccharide-name {
+    text-align: center;
+}
+
+
 .monosaccharide-row input{
-    width: 125px;
+    width: 90px;
     margin-bottom: 0px !important;
 }
 
@@ -42,4 +47,17 @@ Monosaccharide Grid
 
 .monosaccharide-constraints-row {
     margin-bottom: 2px !important;
+}
+
+.monosaccharide-constraints-row input {
+    width: 90px;
+    margin-bottom: 0px !important;
+}
+
+.constrained-value-cell{
+    margin-left: 5px !important;
+}
+
+.constrained-value {
+    width: 125px !important;
 }

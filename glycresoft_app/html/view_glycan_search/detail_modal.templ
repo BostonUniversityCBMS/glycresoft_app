@@ -1,31 +1,80 @@
 <div class='glycan-chromatogram-details-container'>
     <div class='row'>
         <div class='col s4'>
-            {{chromatogram.glycan_composition | glycan_composition_string}} <br/>
-            <b>Observed Mass</b>: {{chromatogram.weighted_neutral_mass}} <br/>
+            {% if chromatogram.glycan_composition %}
+                {{chromatogram.glycan_composition | glycan_composition_string}} <br/>
+                <b>Observed Mass</b>: {{chromatogram.weighted_neutral_mass}} (
+                    {{(chromatogram.glycan_composition.mass() - chromatogram.weighted_neutral_mass) / chromatogram.weighted_neutral_mass}}
+                ) <br/>
+            {% else %}
+                <b>No Identity</b><br/>
+                <b>Observed Mass</b>: {{chromatogram.weighted_neutral_mass}} <br/>
+            {% endif %}
             <b>Total Abundance</b>: {{"%0.4e" % chromatogram.total_signal}} <br/>
-            {% if chromatogram.adducts|length > 1 %}
-                <b>Adduct Signal Fractions</b>
-                <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
-                {% for adduct, fraction in chromatogram.adduct_signal_fractions().items() %}
-                    <li class='adduct-signal-fraction-item' style='margin-left:10px;'>{{adduct.name}}</b>: {{"%0.4e" % fraction}}</li>
-                {% endfor %}
-                </ul>
+            <b>Adduct Signal Fractions</b>
+            <ul class='adduct-signal-fraction-list' style='margin-top:0px;'>
+            {% for adduct, fraction in chromatogram.adduct_signal_fractions().items() %}
+                <li class='adduct-signal-fraction-item' style='margin-left:10px;'>
+                    {{adduct.name}}</b>: {{"%0.4e" % fraction}}
+                </li>
+            {% endfor %}
+            </ul>
+            {% if membership|length > 0 %}
+                <b>Group Membership</b><br>
+                {{membership|join(", ")}}
             {% endif %}
         </div>
         <div class='col s4'>
             <b>Charge States</b>: {{chromatogram.charge_states | join(", ")}} <br/>
-            <b>Chromatogram Score</b>: {{chromatogram.score}} <br/>
+            <b>Chromatogram Score</b>: {{chromatogram.score}} | {{"%0.4g" % logitscore}} <br/>
             <ul style='margin-top: 1px;'>
-                {% for facet_score, value in chromatogram.score_components()._asdict().items() %}
-                    <li>{{facet_score.replace("_", " ").title()}}: {{"%0.4f" % value}} </li>
-                {% endfor %}                
+                {% for facet_score, value in chromatogram.score_components().items() %}
+                    <li>{{facet_score.replace("_", " ").title()}}: {{"%0.4g" % value}} </li>
+                {% endfor %}
             </ul>
+            {% if chromatogram.ambiguous_with|length > 0%}
+                <b>Ambiguous Mass Shifts</b>
+                <ul>
+                {% for pair in chromatogram.ambiguous_with %}
+                    <li style='margin-bottom: 5px;'>
+                        {{pair[0] | glycan_composition_string}} ~ {{pair[1].name}}
+                    </li>
+                {% endfor %}
+                </ul>
+            {% endif %}
+            {% if chromatogram.used_as_adduct|length > 0 %}
+                <b>Used As Adduct</b>
+                <ul>
+                    {% for pair in chromatogram.used_as_adduct %}
+                        <li style='margin-bottom: 5px;'>
+                            {{pair[0] | glycan_composition_string}} ~ {{pair[1].name}}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% endif %}
+        </div>
+        <div class='col s4'>
         </div>
     </div>
     <div class='row'>
         <div class='col s6'>
             {{chromatogram_svg}}
         </div>
+        <div class='col s6'>
+            {% if chromatogram.adducts|length > 1 %}
+                {{adduct_separation_svg}}
+            {% endif %}
+        </div>
+    </div>
+    <div class='row'>
+        <div class='col s6'>
+            {{charge_chromatogram_svg}}
+        </div>
+        <div class='col s6'>
+
+        </div>
+    </div>
+    <div class='row'>
+        
     </div>
 </div>

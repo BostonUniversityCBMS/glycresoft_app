@@ -1,8 +1,10 @@
-<table class="glycan-chromatogram-table bordered display-table">
+<table class="{{table_class}} bordered display-table">
     <thead>
         <tr>
             <th>Mass</th>
-            <th class='medium-wide'>Glycan Composition</th>
+            {% if paginator.first_item and paginator.first_item.composition %}
+                <th class='medium-wide'>Glycan Composition</th>
+            {% endif %}
             <th>Score</th>
             <th>Total Abundance</th>
             <th>Adducts</th>
@@ -14,9 +16,11 @@
     </thead>
     <tbody>
         {% for chrom in paginator.items %}
-        <tr class='glycan-match-row' data-target="{{chrom.id}}">
+        <tr class='{{row_class}}' data-target="{{chrom.id}}">
             <td>{{"%0.5f" % chrom.neutral_mass}}</td>
-            <td class='medium-wide'>{{chrom.composition | glycan_composition_string}}</td>
+            {% if chrom.composition %}
+                <td class='medium-wide'>{{chrom.composition | glycan_composition_string}}</td>
+            {% endif %}
             <td>{{"%0.5f" % chrom.score}}</td>
             <td>{{"%0.3e" % chrom.total_signal}}</td>
             <td>

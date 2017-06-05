@@ -1,4 +1,4 @@
-var ActionBook, Analysis, Hypothesis, Sample, Task, makeAPIGet, makeParameterizedAPIGet;
+var ActionBook, AnalysisAPI, ErrorLogURL, HypothesisAPI, MassShiftAPI, SampleAPI, TaskAPI, User, makeAPIGet, makeParameterizedAPIGet;
 
 ActionBook = {
   home: {
@@ -34,6 +34,10 @@ ActionBook = {
   viewHypothesis: {
     contentURLTemplate: "/view_hypothesis/{uuid}",
     method: "post"
+  },
+  viewSample: {
+    contentURLTemplate: "/view_sample/{sample_id}",
+    method: 'get'
   }
 };
 
@@ -49,21 +53,36 @@ makeParameterizedAPIGet = function(url) {
   };
 };
 
-Hypothesis = {
+HypothesisAPI = {
   all: makeAPIGet("/api/hypotheses"),
   get: makeParameterizedAPIGet("/api/hypotheses/{}")
 };
 
-Sample = {
+SampleAPI = {
   all: makeAPIGet("/api/samples")
 };
 
-Analysis = {
+AnalysisAPI = {
   all: makeAPIGet("/api/analyses")
 };
 
-Task = {
+TaskAPI = {
   all: makeAPIGet("/api/tasks")
+};
+
+ErrorLogURL = "/log_js_error";
+
+User = {
+  get: makeAPIGet("/users/current_user"),
+  set: function(user_id, callback) {
+    return $.post("/users/login", {
+      "user_id": user_id
+    }).success(callback);
+  }
+};
+
+MassShiftAPI = {
+  all: makeAPIGet("/api/mass-shift")
 };
 
 //# sourceMappingURL=bind-urls.js.map

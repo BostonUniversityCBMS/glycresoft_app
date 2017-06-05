@@ -1,3 +1,6 @@
+import os
+from uuid import uuid4
+from threading import RLock
 import operator
 import random
 import string
@@ -50,3 +53,23 @@ def remove_empty_rows(*columns):
         return [[] for i in lengths]
     op = operator.itemgetter(*keep)
     return [listify(op(column)) for column in columns]
+
+
+_unique_name_lock = RLock()
+
+
+def touch_file(path):
+    open(path, 'wb').close()
+
+
+def make_unique_name(template):
+    i = 1
+    with _unique_name_lock:
+        while os.path.exists(template % (str(i),)) and i < (2 ** 16):
+            i += 1
+        if i >= (2 ** 16):
+            result = template % (uuid4().int,)
+        else:
+            result = template % (i,)
+        touch_file(result)
+        return result

@@ -1,0 +1,26 @@
+<div style='overflow-x: scroll;width: 95%; margin-left: 2.5%'>
+<table class='bordered'>
+    <thead>
+        <tr>
+            <th>Neutral Mass</th>
+            <th>Total Signal</th>
+            <th>Charge States</th>
+            <th>Start Time</th>
+            <th>Apex Time</th>
+            <th>End Time</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for chroma in chromatogram_collection %}
+        <tr>
+            <td>{{"%0.4f"|format(chroma.neutral_mass)}}</td>
+            <td>{{"%0.3e"|format(chroma.total_signal)}}</td>
+            <td>{{chroma.charge_states|join(", ")}}</td>
+            <td>{{"%0.2f"|format(chroma.start_time)}}</td>
+            <td>{{"%0.2f"|format(chroma.apex_time)}}</td>
+            <td>{{"%0.2f"|format(chroma.end_time)}}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>    
+</div>

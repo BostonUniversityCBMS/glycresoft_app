@@ -1,24 +1,23 @@
+<div>
     <div class='table-container'>
         <table class='bordered display-table' style='width: 100%;'>
             <thead>
                 <tr>
-                <th class='narrow'></th>
                 <th class='very-very-wide'>Glycopeptide Sequence</th>
                 <th>Theoretical Mass</th>
+                <th>Protein Interval</th>
                 </tr>
             </thead>
             <tbody style='height:550px;'>
                 {% for element in paginator.items %}
                 <tr>
-                    <td class='narrow'>
-                        {{loop.index + base_index}}
-                    </td>
-                    <td class='very-very-wide'>
+                    <td class='very-very-wide peptide-sequence-cell'>
                         {{element.glycopeptide_sequence|glycopeptide_string}}
                     </td>
                     <td>
                         {{element.calculated_mass}}
                     </td>
+                    <td>{{element.peptide.start_position}}-{{element.peptide.end_position}}</td>
                 </tr>
                 {% endfor %}
             </tbody>

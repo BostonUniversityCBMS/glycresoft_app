@@ -1,7 +1,7 @@
 var TinyNotification, tinyNotify;
 
 TinyNotification = (function() {
-  TinyNotification.prototype.template = "<div class='notification-container'>\n    <div class='clearfix dismiss-container'>\n        <a class='dismiss-notification mdi-content-clear'></a>\n    </div>\n    <div class='notification-content'>\n    </div>\n</div>";
+  TinyNotification.prototype.template = "<div class='notification-container'>\n    <div class='clearfix dismiss-container'>\n        <a class='dismiss-notification mdi mdi-close'></a>\n    </div>\n    <div class='notification-content'>\n    </div>\n</div>";
 
   function TinyNotification(top, left, message, parent, css) {
     if (parent == null) {

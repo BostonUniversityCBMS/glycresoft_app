@@ -1,13 +1,24 @@
-<div class='row'>
+<div class='row' style='margin-bottom: 3px;'>
     <div class='col s6'>
-        <h4>{{hypothesis.name}}</h4>
-        <span>ID: {{hypothesis.id}}</span>
+        <h5 class='section-title'>{{hypothesis.name}}</h5>
+        <span>ID: {{hypothesis.uuid}}:{{hypothesis.id}}</span>
     </div>
     {% include "components/mass_search.templ" %}
 </div>
+<div class='row' style='margin-bottom: 5px;'>
+    <div class='col s2'>
+        <b>Enzyme:</b> {{hypothesis.parameters.enzymes|join(", ")}}<br>
+    </div>
+    <div class='col s2'>
+        <b># of Glycosylation Sites:</b> {{hypothesis.parameters.max_glycosylation_events}}<br>
+    </div>
+    <div class='col s3'>
+        <b># of Missed Cleavages Allowed:</b> {{hypothesis.parameters.max_missed_cleavages}}<br>
+    </div>
+</div>
 <div class='row' id='hypothesis-protein-glycopeptide-container'>
     <div class='row'>
-        <div class='col s4'>
+        <div class='col s5' style='overflow-x: auto'>
             {% with proteins=hypothesis.proteins|sort(attribute='name') %}
                 {% include "view_glycopeptide_hypothesis/components/protein_table.templ"%}
             {% endwith %}        
@@ -18,11 +29,10 @@
             </div>
         </div>        
     </div>
-    <div id="display-table-container" class='col s8'>
+    <div id="display-table-container" class='col s7'>
         
     </div>
 </div>
 <script>
-// viewGlycopeptideCompositionHypothesis({{hypothesis.id}})
-controller = new GlycopeptideHypothesisController({{hypothesis.id}})
+controller = new GlycopeptideHypothesisController("{{hypothesis.uuid}}")
 </script>

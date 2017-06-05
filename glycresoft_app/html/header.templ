@@ -2,8 +2,25 @@
     <nav class='indigo lighten-2'>
         <div class="nav-wrapper">&nbsp;&nbsp;
             <a href="/" class="brand-logo" style='size:12px;'>GlycReSoft</a>
+
             <ul id="nav-mobile" class="right">
-                <li><a id='preferences-link' style='padding-left:25px;padding-right:25px;'>Preferences</a></li>
+                <li>
+                    <a id='preferences-link' style='padding-left:25px;padding-right:25px;'>
+                        Preferences
+                    </a>
+                </li>
+                <li>
+                    <a id='settings-link' style='padding-left:25px;padding-right:25px;'>
+                        Settings
+                    </a>
+                </li>
+                {% if multiuser and is_logged_in %}
+                    <li>
+                        <a id='logout-link' href='/logout' style='padding-left:25px;padding-right:25px;'>
+                            Log Out
+                        </a>
+                    </li>
+                {% endif %}
             </ul>
         </div>
     </nav>

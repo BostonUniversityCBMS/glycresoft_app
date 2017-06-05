@@ -4,7 +4,8 @@ from glycan_profiling.cli.build_db import (
     CombinatorialGlycanHypothesisSerializer, validate_reduction,
     validate_derivatization, validate_glycan_hypothesis_name)
 
-from glycresoft_app.utils import json_serializer
+# from glycresoft_app.utils import json_serializer
+from glycresoft_app.project import hypothesis as project_hypothesis
 from .task_process import Task, Message
 
 
@@ -31,9 +32,20 @@ def build_combinatorial_hypothesis(rule_file, database_connection, reduction, de
             derivatization=derivatization,
             hypothesis_name=name)
         builder.start()
-        channel.send(Message(json_serializer.handle_glycan_hypothesis(builder.hypothesis), "new-hypothesis"))
-    except:
+        record = project_hypothesis.HypothesisRecordSet(database_connection)
+        hypothesis_record = None
+
+        for item in record:
+            if item.uuid == builder.hypothesis.uuid:
+                hypothesis_record = item
+                hypothesis_record = hypothesis_record._replace(user_id=channel.user.id)
+                channel.send(Message(hypothesis_record.to_json(), "new-hypothesis"))
+                break
+        else:
+            channel.send(Message("Something went wrong (%r)" % (list(record),)))
+    except Exception:
         channel.send(Message.traceback())
+        raise
 
 
 class BuildCombinatorialGlycanHypothesis(Task):

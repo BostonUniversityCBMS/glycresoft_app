@@ -1,6 +1,6 @@
 <div id='protein-overview'>
     <div>
-        <h5>{{protein.name}}</h5>
+        <h5 class='section-title'>{{protein.name}}</h5>
         <code class='sequence-text'>
             {{
             protein.protein_sequence | highlight_sequence_site(protein.glycosylation_sites, "glycosylation-site") | n_per_row(45)

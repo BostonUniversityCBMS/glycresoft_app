@@ -1,0 +1,32 @@
+{%- extends "layout.templ" %}
+
+{% block body %}
+
+<div class='row'>
+    <form id="copy-file-form" action='/copy-file-form' method="post" accept-charset="utf-8" class="col s12">
+        <div class='row'>
+            <div class='col s5'>
+                <div class="file-field input-field">
+                    <span class="btn">
+                        <span>Select File</span>
+                        <input name='target-file' type="file"/>
+                    </span>
+                    <input class="file-path validate" type="text" placeholder="Please provide a file" />
+                </div>
+            </div>
+        </div>
+        <button class='btn wave-effect'>
+            Submit
+        </button>
+    </form>
+    <script>
+materialRefresh()
+ajaxForm("#copy-file-form", function(data){
+    GlycReSoft.updateSettings()
+}, null, null, function(ev){
+    console.log(ev.loaded / ev.total * 100.)
+})
+    </script>
+</div>
+
+{% endblock %}

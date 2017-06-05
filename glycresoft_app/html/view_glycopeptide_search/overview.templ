@@ -1,6 +1,6 @@
 <div class='row'>
     <div class='col s8'>
-        <h5>{{analysis.name}}</h5>
+        <h5 class='section-title'>{{analysis.name}}</h5>
     </div>
 </div>
 <div id='glycopeptide-lcmsms-container'>
@@ -18,17 +18,33 @@
             <a class='user-provided-name'>{{analysis.sample_run.name}}</a>
         </div>
         <div class='col s4'>
-            <b>ID:</b> {{analysis.id}}<br>
-            <a class='mdi mdi-content-save mdi-36px tooltipped' id='save-csv-btn' style='cursor: pointer;'
-               data-tooltip='Export Identification CSV' data-position='bottom'>
+            <b>ID:</b> {{analysis.uuid}}<br>
+            <a class='mdi mdi-content-save mdi-36px tooltipped' id='save-result-btn' style='cursor: pointer;'
+               data-tooltip='Export Identifications' data-position='bottom'>
             </a>
         </div>
     </div>
     <div class='row'>
-        <div class="col s6">
+        <div class="col s5">
             {% include "view_glycopeptide_search/components/protein_table.templ" %}
         </div>
-        <div class='col s3'>
+        <div class='col s3 offset-s1'>
+            <div class='input-field'>
+                <label for="search-by-scan-id">
+                    Search by Scan ID
+                </label>
+                <input type="text" name="search-by-scan-id" class='tooltipped'
+                       id='search-by-scan-id' data-tooltip="
+                       Enter a Scan ID to check if it has been matched to
+                       a glycopeptide"
+                       />
+            </div>
+        {# TODO
+This space could be used to hold other controls which don't fit directly into the tab view model. Options are:
+- Search for PSM by scan id
+- Interactive EIC graph builder
+- Search for glycopeptide by sequence
+         #}
         </div>
         <div class="col s1">
         </div>
@@ -46,5 +62,5 @@
     </div>
 </div>
 <script>
-    controller = new GlycopeptideLCMSMSSearchController({{analysis.id}}, "{{analysis.hypothesis.uuid}}", null)
+    controller = new GlycopeptideLCMSMSSearchController("{{analysis.uuid}}", "{{analysis.hypothesis.uuid}}", null)
 </script>

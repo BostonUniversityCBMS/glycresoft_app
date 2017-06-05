@@ -1,0 +1,41 @@
+<div class='row'>
+    <div class='col s8'>
+        <h5 class='section-title'>{{sample_run.name}}</h5>
+        <b>ID: {{sample_run.uuid}}</b>
+    </div>
+</div>
+<div id='sample-metadata-container'>
+    <div class='row'>
+        <div class='col s4'>
+            <b>Scan Counts:</b>
+            <div>
+                {% for ms_level, count in scan_levels.items()|sort %}
+                    {% if count > 0 %}
+                        <div class='ms-level-tiny-display' style='pad-left: 15px;'>
+                            <b>MS<sup>{{ms_level}}</sup>:</b> {{count}}
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+        <div class='col s4'>
+            &nbsp;
+        </div>
+        <div class='col s4'>
+            &nbsp;
+        </div>
+    </div>
+</div>
+<div class='row'>
+    <div class='col s10' id='tic-container'>
+        {{chromatograms}}
+    </div>
+</div>
+<div id="chromatogram-table" class='row'>
+
+</div>
+<script type="text/javascript">
+    $.get("/view_sample/{{sample_run.uuid}}/chromatogram_table").then(function(content) {
+        $("#chromatogram-table").html(content)
+    })
+</script>

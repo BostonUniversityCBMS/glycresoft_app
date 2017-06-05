@@ -1,7 +1,7 @@
 <div id='glycan-lcms-container'>
     <div class='row'>
         <div class='col s8'>
-            <h5>{{analysis.name}}</h5>
+            <h5 class='section-title'>{{analysis.name}}</h5>
         </div>
     </div>
     <div class='row'>
@@ -18,10 +18,26 @@
             <a class='user-provided-name'>{{analysis.sample_run.name}}</a>
         </div>
         <div class='col s4'>
-            <b>ID:</b> {{analysis.id}}<br>
+            <b>ID:</b> {{analysis.uuid}}<br>
             <a class='mdi mdi-content-save mdi-36px tooltipped' id='save-csv-btn' style='cursor: pointer;'
-                   data-tooltip='Export Identification CSV' data-position='bottom'>
+                   data-tooltip='Export Identification To Text File' data-position='bottom'>
             </a>
+        </div>
+    </div>
+    <div class='row'>
+        <div class='col s2 input-field'>
+            <label for='start_time'>Start Time (Min)</label>
+            <input class='numeric-entry' type='number' value='0' step='any' min='0' max='10000000' 
+                   id='start_time' name='start_time' placeholder="Time To Start Showing Results From">
+        </div>
+        <div class='col s2 input-field'>
+            <label for='end_time'>End Time (Min)</label>
+            <input class='numeric-entry' type='number' value='256' step='any' min='0' max='10000000' 
+                   id='end_time' name='end_time' placeholder="Time To Stop Showing Results From">
+        </div>
+        <div class='col s3 input-field'>
+            <input type="checkbox" id="omit_used_as_adduct" name="omit_used_as_adduct">
+            <label for='omit_used_as_adduct'>Omit Matches Masked By Adduction</label>
         </div>
     </div>
     <div id='monosaccharide-filters'>
@@ -40,5 +56,7 @@
 </div>
 <script>
     var controller = new GlycanCompositionLCMSSearchController(
-        {{analysis.id}}, "{{analysis.hypothesis.uuid}}", {{analysis.hypothesis.monosaccharide_bounds()}});
+            "{{analysis.uuid}}", "{{analysis.hypothesis.uuid}}",
+            {{analysis.hypothesis.monosaccharide_bounds()}});
+    materialRefresh()
 </script>

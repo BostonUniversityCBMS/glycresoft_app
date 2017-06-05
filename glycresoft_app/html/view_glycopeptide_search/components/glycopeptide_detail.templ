@@ -1,6 +1,6 @@
 <div class='glycopeptide-details-container'>
     <div class='row'>
-        <div class='col s6'>
+        <div class='col s6' data-coverage="{{match.compute_coverage()}}">
             <h6><b>Glycopeptide Sequence</b></h6>
             <div class='sequence-emphasis'>{{glycopeptide.structure|glycopeptide_string(long=True)}}</div>
             <b>Start Position</b>: {{glycopeptide.start_position}} <b>End Position</b>: {{glycopeptide.end_position}}
@@ -25,7 +25,11 @@
         </div>
         <div class='col s4'>
             <b>Observed Mass (PPM Error)</b>:
-            <span>{{glycopeptide.chromatogram.weighted_neutral_mass}}
+            {% if glycopeptide.chromatogram %}
+                <span>{{glycopeptide.chromatogram.weighted_neutral_mass}}
+            {% else %}
+                <span>{{match.scan.precursor_information.neutral_mass}}
+            {% endif %}
                   ({{"%0.3e"|format(match.precursor_mass_accuracy())}})</span> <br>
             <b>Spectrum Matches</b>:
             <span>
@@ -45,16 +49,80 @@
     <div class='row'>
         <div class='col s6'>
             {{sequence_logo_plot}}
+            <br>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Scan ID</th>
+                        <th class='center-align'>Scan Time</th>
+                        <th class='center-align'>Score</th>
+                        <th class='center-align'>Precursor Charge</th>
+                        <th>Precursor ID</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for scan in matched_scans|sort(attribute='scan_time')  %}
+                    <tr data-intensity="{{scan.precursor_information.intensity}}"
+                        data-neutral-mass="{{scan.precursor_information.neutral_mass}}">
+                        {% if scan.id|length > 30 %}
+                            <td class='glycopeptide-detail-matched-scan-id'>
+                                <small>{{scan.id}}</small>
+                            </td>
+                        {% else %}
+                            <td class='glycopeptide-detail-matched-scan-id'>
+                                {{scan.id}}
+                            </td>
+                        {% endif %}
+                        <td class='glycopeptide-detail-matched-scan-time center-align'>{{"%0.2f minutes" % scan.scan_time}}</td>
+                        <td class='glycopeptide-detail-matched-scan-score center-align'>{{"%0.2f" % scan.score}}</td>
+                        <td class='glycopeptide-detail-matched-scan-charge center-align'>{{scan.precursor_information.charge}}</td>
+                        {% if scan.precursor_information.precursor_scan_id|length > 30 %}
+                            <td class='glycopeptide-detail-matched-precursor'>
+                                <small>{{scan.precursor_information.precursor_scan_id}}</small>
+                            </td>
+                        {% else %}
+                            <td class='glycopeptide-detail-matched-precursor'>
+                                {{scan.precursor_information.precursor_scan_id}}
+                            </td>
+                        {% endif %}
+                    </tr>
+                {% endfor %}                    
+                </tbody>
+            </table>
         </div>
-        <div class='col s3'>
+        <div class='col s5'>
             <h5>Fragment Matches</h5>
-            {% for pair in match.solution_map|sort(attribute='fragment.series.name') %}
-                <span class='fragment-match' style='padding: 5px;display: inline-block;word-break: none;'>
-                    <span class='fragment-name'>{{pair.fragment.name}}</span>
-                    &rarr;
-                    <span class='matched-peak'>{{(pair.peak.mz, pair.peak.intensity, pair.peak.charge)}}</span>
-                </span><br>
-            {% endfor %}            
+            <table>
+                <thead>
+                    <tr>
+                        <th>Fragment Name</th>
+                        <th class='center-align'>m/z</th>
+                        <th class='center-align'>Intensity</th>
+                        <th class='center-align'>Charge</th>
+                    </tr>
+                </thead>
+                <tbody>
+                {% for pair in match.solution_map|sort_peak_match_pairs %}
+                    <tr>
+                        {% if pair.fragment.name | length < 25 %}
+                            <td><b><span class='fragment-name'>{{pair.fragment.name}}</span></b></td>
+                        {% else %}
+                            <td><b><span class='fragment-name'><small>{{pair.fragment.name}}</small></span></b></td>
+                        {% endif %}
+                        <td class='center-align'>{{"%0.3f" % pair.peak.mz}} ({{"%0.2e" % (
+                            (pair.peak.neutral_mass - pair.fragment.mass) / pair.fragment.mass)}})</td>
+                        <td class='center-align' data-score="{{pair.peak.score}}">{{"%0.3f" % pair.peak.intensity}} ({{"%0.2f%%" % (
+                            pair.peak.intensity * 100.0 / max_peak)}})</td>
+                        <td class='center-align'>{{pair.peak.charge}}</td>
+                    </tr>
+                {% endfor %}                    
+                </tbody>
+            </table>
+        </div>
+    </div>
+    <div class='row'>
+        <div class='col s6'>
+
         </div>
     </div>
 </div>

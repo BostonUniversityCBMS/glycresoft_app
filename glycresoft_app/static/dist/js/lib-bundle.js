@@ -1,4 +1,4 @@
-var ActionLayer, ActionLayerManager,
+var ActionLayer, ActionLayerManager, errorLoadingContent, loadingContent,
   extend = function(child, parent) { for (var key in parent) { if (hasProp.call(parent, key)) child[key] = parent[key]; } function ctor() { this.constructor = child; } ctor.prototype = parent.prototype; child.prototype = new ctor(); child.__super__ = parent.prototype; return child; },
   hasProp = {}.hasOwnProperty;
 
@@ -54,6 +54,7 @@ ActionLayerManager = (function(superClass) {
 
   ActionLayerManager.prototype.setShowingLayer = function(id) {
     var current, i, next;
+    clearTooltip();
     current = this.getShowingLayer();
     next = this.get(id);
     try {
@@ -142,9 +143,11 @@ ActionLayerManager = (function(superClass) {
 
 })(EventEmitter);
 
-ActionLayer = (function() {
-  ActionLayer.actions = {};
+loadingContent = "<div class='content-loading-please-wait' style='margin-top:5%'>\n    <h5 class='center-align green-text'>Loading Content. Please Wait.</h5>\n    <div class=\"progress\">\n        <div class=\"indeterminate\"></div>\n    </div>\n</div>";
 
+errorLoadingContent = "<div class='content-loading-please-wait' style='margin-top:5%'>\n    <h5 class='center-align red-text'>Something Went Wrong.</h5>\n</div>";
+
+ActionLayer = (function() {
   function ActionLayer(manager, options, params, method) {
     if (method == null) {
       method = 'get';
@@ -181,7 +184,7 @@ ActionLayer = (function() {
   }
 
   ActionLayer.prototype.setup = function() {
-    var callback;
+    var callback, errorHandler;
     if (this.options.contentURLTemplate != null) {
       this.contentURL = this.options.contentURLTemplate.format(this.params);
     }
@@ -206,8 +209,14 @@ ActionLayer = (function() {
         }
       };
     })(this);
+    errorHandler = (function(_this) {
+      return function(err) {
+        return _this.container.html(errorLoadingContent);
+      };
+    })(this);
+    this.container.html(loadingContent);
     if (this.method === "get") {
-      return $.get(this.contentURL).success(callback);
+      return $.get(this.contentURL).success(callback).error(errorHandler);
     } else if (this.method === "post") {
       console.log("Setup Post", this.manager.settings);
       return $.ajax(this.contentURL, {
@@ -218,6 +227,7 @@ ActionLayer = (function() {
           settings: this.manager.settings
         }),
         success: callback,
+        error: errorHandler,
         type: "POST"
       });
     }
@@ -243,6 +253,10 @@ ActionLayer = (function() {
     return this.controller = controller;
   };
 
+  ActionLayer.prototype.getController = function() {
+    return this.controller;
+  };
+
   ActionLayer.prototype.show = function() {
     this.container.fadeIn(100);
     return this.showing = true;
@@ -266,7 +280,12 @@ ActionLayer = (function() {
 
 var ajaxForm, setupAjaxForm;
 
-ajaxForm = function(formHandle, success, error, transform) {
+ajaxForm = function(formHandle, success, error, transform, progress) {
+  if (progress == null) {
+    (function(ev) {
+      return ev;
+    });
+  }
   return $(formHandle).on('submit', function(event) {
     var ajaxParams, data, encoding, handle, locked, method, url, wrappedError, wrappedSuccess;
     event.preventDefault();
@@ -281,6 +300,11 @@ ajaxForm = function(formHandle, success, error, transform) {
       locked = true;
       handle.data("locked", locked);
     }
+    if (error == null) {
+      error = function() {
+        return console.log(arguments);
+      };
+    }
     if (transform == null) {
       transform = function(form) {
         return new FormData(form);
@@ -292,13 +316,24 @@ ajaxForm = function(formHandle, success, error, transform) {
     encoding = handle.attr('enctype') || 'application/x-www-form-urlencoded; charset=UTF-8';
     wrappedSuccess = function(a, b, c) {
       handle.data("locked", false);
-      return success(a, b, c);
+      if (success != null) {
+        return success(a, b, c);
+      }
     };
     wrappedError = function(a, b, c) {
       handle.data("locked", false);
-      return error(a, b, c);
+      if (error != null) {
+        return error(a, b, c);
+      }
     };
     ajaxParams = {
+      'xhr': function() {
+        var xhr;
+        xhr = new window.XMLHttpRequest();
+        xhr.upload.addEventListener("progress", progress);
+        xhr.addEventListener("progress", progress);
+        return xhr;
+      },
       'url': url,
       'method': method,
       'data': data,
@@ -475,22 +510,16 @@ $(function() {
       keys = Object.keys(arguments);
     }
     res = this.replace(/\{([^\}]*)\}/g, function(placeholder, name, position) {
-      var err, v;
+      var v;
       if (name === '') {
         name = keys[i];
         i++;
       }
-      try {
-        v = JSON.stringify(data[name]);
-        if (v.startsWith('"') && v.endsWith('"')) {
-          v = v.slice(1, -1);
-        }
-        return v;
-      } catch (_error) {
-        err = _error;
-        console.log(err, name, data);
-        return void 0;
+      v = JSON.stringify(data[name]);
+      if (v.startsWith('"') && v.endsWith('"')) {
+        v = v.slice(1, -1);
       }
+      return v;
     });
     return res;
   };
@@ -542,32 +571,101 @@ GlycanComposition = (function() {
 
 //# sourceMappingURL=glycan-composition.js.map
 
-var MzIdentMLProteinSelector, getProteinName, getProteinNamesFromMzIdentML, identifyProteomicsFormat;
+var MzIdentMLProteinSelector, ProteomicsFileFormats, getProteinName, getProteinNamesFromMzIdentML, identifyProteomicsFormat;
 
 identifyProteomicsFormat = function(file, callback) {
-  var isMzidentML, reader;
+  var isMzML, isMzidentML, reader;
   isMzidentML = function(lines) {
-    var j, len, line;
+    var d, hasVersion, hit, i, j, len, line, match, tag, version;
+    i = 0;
+    hit = false;
+    tag = [];
     for (j = 0, len = lines.length; j < len; j++) {
       line = lines[j];
       if (/mzIdentML/.test(line)) {
-        return true;
+        hit = true;
+        break;
       }
+      i += 1;
+    }
+    if (hit) {
+      console.log(hit);
+      tag.push(line[i]);
+      tag.push(lines[i + 1]);
+      tag.push(lines[i + 2]);
+      tag = tag.join(" ");
+      hasVersion = /version="([0-9\.]+)"/.test(tag);
+      if (hasVersion) {
+        match = /version="([0-9\.]+)"/.exec(tag);
+        version = match[1];
+        version = [
+          (function() {
+            var k, len1, ref, results;
+            ref = version.split('.');
+            results = [];
+            for (k = 0, len1 = ref.length; k < len1; k++) {
+              d = ref[k];
+              results.push(parseInt(d));
+            }
+            return results;
+          })()
+        ];
+        return {
+          "version": version,
+          "format": ProteomicsFileFormats.mzIdentML
+        };
+      } else {
+        return {
+          "format": ProteomicsFileFormats.mzIdentML
+        };
+      }
+    }
+    return false;
+  };
+  isMzML = function(lines) {
+    var hit, i, j, len, line, tag;
+    i = 0;
+    hit = false;
+    tag = [];
+    for (j = 0, len = lines.length; j < len; j++) {
+      line = lines[j];
+      if (/(mzML)|(indexedmzML)/.test(line)) {
+        hit = true;
+        break;
+      }
+      i += 1;
+    }
+    if (hit) {
+      return {
+        "format": ProteomicsFileFormats.error
+      };
     }
     return false;
   };
   reader = new FileReader();
   reader.onload = function() {
-    var lines, proteomicsFileType;
+    var lines, proteomicsFileType, test;
     lines = this.result.split("\n");
-    console.log(lines);
-    proteomicsFileType = "fasta";
-    if (isMzidentML(lines)) {
-      proteomicsFileType = "mzIdentML";
+    proteomicsFileType = {
+      "format": ProteomicsFileFormats.fasta
+    };
+    test = isMzML(lines);
+    if (test) {
+      proteomicsFileType = test;
+    }
+    test = isMzidentML(lines);
+    if (test) {
+      proteomicsFileType = test;
     }
     return callback(proteomicsFileType);
   };
   return reader.readAsText(file.slice(0, 100));
+};
+
+ProteomicsFileFormats = {
+  mzIdentML: "mzIdentML",
+  fasta: "fasta",
+  error: "error"
 };
 
 getProteinName = function(sequence) {
@@ -629,7 +727,6 @@ getProteinNamesFromMzIdentML = function(file, callback, nameCallback) {
             nameCallback(name);
           }
         } else if (/<\/SequenceCollection>/i.test(line)) {
-          console.log("Done!", line);
           isDone = true;
         }
         lastLine = "";
@@ -660,6 +757,10 @@ MzIdentMLProteinSelector = (function() {
     this.container = $(listContainer);
     this.initializeContainer();
   }
+
+  MzIdentMLProteinSelector.prototype.clearContainer = function() {
+    return this.container.html("");
+  };
 
   MzIdentMLProteinSelector.prototype.initializeContainer = function() {
     var self, template;
@@ -813,9 +914,12 @@ When these elements are added dynamically, they must be configured manually.
 
 This code is taken from https://github.com/Dogfalo/materialize/blob/master/js/forms.js#L156
  */
-var materialCheckbox, materialFileInput, materialRefresh;
+var clearTooltip, materialCheckbox, materialFileInput, materialRefresh, materialTooltip;
 
 materialRefresh = function() {
+  try {
+    materialTooltip();
+  } catch (_error) {}
   try {
     $('select').material_select();
   } catch (_error) {}
@@ -825,6 +929,16 @@ materialRefresh = function() {
   try {
     Materialize.updateTextFields();
   } catch (_error) {}
+  try {
+    clearTooltip();
+  } catch (_error) {}
+};
+
+materialTooltip = function() {
+  $('.material-tooltip').remove();
+  return $('.tooltipped').tooltip({
+    delay: 50
+  });
 };
 
 materialFileInput = function() {
@@ -852,6 +966,17 @@ materialCheckbox = function(selector) {
     return $("input[name='" + target + "']").click();
   });
 };
+
+clearTooltip = function() {
+  return $('.material-tooltip').hide();
+};
+
+$(function() {
+  return $("body").on("click", ".lean-overlay", function() {
+    $(".lean-overlay").remove();
+    return console.log("Removing the overlay");
+  });
+});
 
 //# sourceMappingURL=material-shim.js.map
 
@@ -1179,6 +1304,33 @@ PeptideSequence = (function() {
 
 //# sourceMappingURL=peptide-sequence.js.map
 
+var SVGSaver,
+  bind = function(fn, me){ return function(){ return fn.apply(me, arguments); }; };
+
+SVGSaver = (function() {
+  function SVGSaver(svgElement) {
+    this.svgElement = svgElement;
+    this.draw = bind(this.draw, this);
+    this.canvas = $("<canvas></canvas>")[0];
+    this.img = $("<img>");
+    this.canvas.height = this.svgElement.height();
+    this.canvas.width = this.svgElement.width();
+  }
+
+  SVGSaver.prototype.draw = function() {
+    var ctx, xml;
+    xml = new XMLSerializer().serializeToString(this.svgElement[0]);
+    this.img.attr("src", "data:image/svg+xml;base64," + btoa(xml));
+    ctx = this.canvas.getContext('2d');
+    return ctx.drawImage(this.img[0], 0, 0);
+  };
+
+  return SVGSaver;
+
+})();
+
+//# sourceMappingURL=svg-to-png.js.map
+
 var TabViewBase;
 
 TabViewBase = (function() {
@@ -1251,7 +1403,7 @@ TabViewBase = (function() {
 var TinyNotification, tinyNotify;
 
 TinyNotification = (function() {
-  TinyNotification.prototype.template = "<div class='notification-container'>\n    <div class='clearfix dismiss-container'>\n        <a class='dismiss-notification mdi-content-clear'></a>\n    </div>\n    <div class='notification-content'>\n    </div>\n</div>";
+  TinyNotification.prototype.template = "<div class='notification-container'>\n    <div class='clearfix dismiss-container'>\n        <a class='dismiss-notification mdi mdi-close'></a>\n    </div>\n    <div class='notification-content'>\n    </div>\n</div>";
 
   function TinyNotification(top, left, message, parent, css) {
     if (parent == null) {

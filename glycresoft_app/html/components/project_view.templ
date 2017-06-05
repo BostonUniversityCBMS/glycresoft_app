@@ -1,0 +1,95 @@
+{%- extends "layout.templ" %}
+
+{% block body %}
+    <style type="text/css">
+        .project-item {
+            border-bottom: 1px solid lightgrey;
+            border-collapse: collapse;
+        }
+
+        .analysis-entry-list:not(:last-child) {
+            border-bottom: 1px solid lightgrey;
+            border-collapse: collapse;
+        }
+
+        .analysis-entry-item {
+            border-bottom: 1px solid lightgrey;
+            border-collapse: collapse;
+            padding-left: 15px;
+        }
+
+        .project-sample-name {
+            font-family: Inconsolata;
+            font-weight: 600;
+            font-size: 1.0em;
+            cursor: pointer;
+        }
+
+        .project-analysis-name {
+            font-family: Inconsolata;
+            font-size: 0.9em;
+            cursor: pointer;
+        }
+
+        .expanded-display-control {
+            cursor: pointer;
+        }
+
+        .expanded-display-control i {
+            font-size: 16px;
+        }
+    </style>
+    <script type="text/javascript">
+        $(function(){
+            $(".projects-entry-list").on("click", ".analysis-entry-item", function(event){
+                let target = this
+                GlycReSoft.invalidate()
+                let handle = $(target)
+                let id = handle.attr('data-uuid')
+                GlycReSoft.addLayer(
+                    ActionBook.viewAnalysis, {analysis_id: id})
+                console.log(GlycReSoft.layers)
+                console.log(GlycReSoft.lastAdded)
+                GlycReSoft.context["analysis_id"] = id
+                GlycReSoft.setShowingLayer(
+                    GlycReSoft.lastAdded)
+            })
+            $(".project-entry").on("click", ".expanded-display-control", function(event){
+                let target = event.delegateTarget
+                let handleList = $(target).find(".analysis-entry-list")
+                if(handleList.is(":visible")){
+                    handleList.hide()
+                    $(this).find(".material-icons").text("add_box")
+                } else {
+                    handleList.show()
+                    $(this).find(".material-icons").text("check_box_outline_blank")                    
+                }
+            })
+        })
+    </script>
+    <div style='width: 13.9%;'>
+        <div class="projects-entry-list" style=''>
+            {% for sample in g.manager.samples() %}
+            <div class='project-entry'>
+                <div class="project-item" data-uuid='{{sample.uuid}}'>
+                    <span class='project-sample-name'>
+                        <span class="expanded-display-control">
+                            <i class="material-icons">check_box_outline_blank</i>
+                        </span>
+                        {{sample.name | replace("_", " ")}}
+                    </span>
+                    <div class="analysis-entry-list">
+                        {% for analysis in g.manager.analyses_for_sample(sample.name) %}
+                            <div class='analysis-entry-item' data-uuid='{{analysis.uuid}}'>
+                                <span class='project-analysis-name'>
+                                    {{analysis.name | replace(" at " + sample.name, "") | replace("_", " ")}}
+                                </span>
+                            </div>                            
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock %}

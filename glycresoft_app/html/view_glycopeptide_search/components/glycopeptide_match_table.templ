@@ -11,14 +11,20 @@
             <th class='narrow'>Protein<br>Coordinates</th>
             <th class='narrow'>Tandem<br>Scans</th>
             <th class='narrow'>Start Time</th>
-            <th class='narrow'>End Time</th>
             <th class='narrow'>Apex Time</th>
+            <th class='narrow'>End Time</th>
         </tr>
     </thead>
     <tbody class='glycopeptide-match-table-body' style='height:450px;'>
     {% for gpm in paginator.items %}    
         <tr class='glycopeptide-match-row' data-target="{{gpm.id}}">
-            <td class='narrow'>{{"%0.4f"|format(gpm.chromatogram.weighted_neutral_mass)}}</td>
+            {% if gpm.chromatogram %}
+                <td class='narrow'>{{"%0.4f"|format(gpm.chromatogram.weighted_neutral_mass)}}</td>
+            {% else %}
+                <td class='narrow'>{{"%0.4f"|format(
+                    gpm.tandem_solutions[0].scan.precursor_information.neutral_mass)}}
+                </td>
+            {% endif %}
             <td class='very-very-wide'>{{gpm.structure | glycopeptide_string}}</td>
             <td class='narrow'>{{"%0.4f"|format(gpm.ms2_score)}}</td>
             <td class='narrow'>{{"%0.3f"|format(gpm.q_value) if gpm.q_value != 0.0 else 0.0}}</td>
@@ -28,9 +34,15 @@
                 {{gpm.start_position}} - {{gpm.end_position}}
             </td>
             <td class='narrow'>{{gpm.spectrum_matches|length}}</td>
-            <td class='narrow'>{{gpm.chromatogram.start_time}}</td>
-            <td class='narrow'>{{gpm.chromatogram.end_time}}</td>
-            <td class='narrow'>{{gpm.chromatogram.apex_time}}</td>
+            {% if gpm.chromatogram %}
+                <td class='narrow'>{{gpm.chromatogram.start_time}}</td>
+                <td class='narrow'>{{gpm.chromatogram.apex_time}}</td>
+                <td class='narrow'>{{gpm.chromatogram.end_time}}</td>
+            {% else %}
+                <td class='narrow'>-</td>
+                <td class='narrow'>-</td>
+                <td class='narrow'>-</td>
+            {% endif %}
         </tr>
     {% endfor %}
     </tbody>

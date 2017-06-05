@@ -41,7 +41,7 @@ class MonosaccharideFilterState
         console.log hypothesisUUID, @hypothesisUUID
         if hypothesisUUID != @hypothesisUUID
             console.log("Is New Hypothesis")
-            Hypothesis.get hypothesisUUID, (result) =>
+            HypothesisAPI.get hypothesisUUID, (result) =>
                 hypothesis = result.hypothesis
                 @setHypothesis(hypothesis)
                 @setApplicationFilter()
@@ -50,6 +50,10 @@ class MonosaccharideFilterState
             console.log("Is not new hypothesis")
             @setApplicationFilter()
             callback(@bounds)
+
+    invalidate: ->
+        @setHypothesis(null)
+        @setApplicationFilter()
 
 
 class MonosaccharideFilter
@@ -76,7 +80,7 @@ class MonosaccharideFilter
             }
             @rules[residue] = rule
         residue.name = residue
-        residue.sanitizeName = sanitizeName = residue.replace(/[\(\),]/g, "_")
+        residue.sanitizeName = sanitizeName = residue.replace(/[\(\),#.@\^]/g, "_")
         template = """
             <span class="col s2 monosaccharide-filter" data-name='#{residue}'>
                 <p style='margin: 0px; margin-bottom: -10px;'>

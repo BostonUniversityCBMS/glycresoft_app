@@ -23,3 +23,46 @@
     padding-left: 5%;
     padding-right: 5%;
 }
+
+/*
+    Sample Analysis Tree List
+ */
+
+.project-item {
+    border-bottom: 1px solid lightgrey;
+    border-collapse: collapse;
+}
+
+.analysis-entry-list:not(:last-child) {
+    border-bottom: 1px solid lightgrey;
+    border-collapse: collapse;
+}
+
+.analysis-entry-item {
+    border-bottom: 1px solid lightgrey;
+    border-collapse: collapse;
+    padding-left: 15px;
+}
+
+.project-sample-name {
+    font-family: Inconsolata;
+    font-weight: 600;
+    font-size: 1.0em;
+    cursor: pointer;
+}
+
+.project-analysis-name {
+    font-family: Inconsolata;
+    font-size: 0.9em;
+    cursor: pointer;
+}
+
+.expanded-display-control {
+    cursor: pointer;
+}
+
+.expanded-display-control i {
+    font-size: 22px;
+    position: relative;
+    top: 5;
+}

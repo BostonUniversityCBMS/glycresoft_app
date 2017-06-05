@@ -1,0 +1,18 @@
+{% set samples = manager.samples(user) %}
+{% if samples|length > 0 %}
+    <label for="samples" style='font-size: 1.3em;'>Select one or more samples</label>
+    <select name="samples" class='browser-default' multiple style='height:150px;'>
+        {% for sample in samples %}
+            <option value="{{sample.uuid}}">{{sample.name}}
+            {% if not sample.completed %}
+                (Incomplete)
+            {% endif %}
+            </option>
+        {% endfor %}
+    </select>
+{% else %}
+    <h6 class='red-text'>
+        You don't have any samples ready yet. Please add a sample to the workspace
+        or wait for one to finish being preprocessed.
+    </h6>
+{% endif %}
