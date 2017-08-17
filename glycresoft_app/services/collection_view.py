@@ -1,4 +1,6 @@
 import logging
+import contextlib
+
 from threading import RLock
 from glycan_profiling.serialize import (
     DatabaseBoundOperation)
@@ -74,3 +76,23 @@ class CollectionViewBase(object):
 
     def _resolve_sources(self):
         pass
+
+
+class SnapshotBase(object):
+    def __init__(self):
+        self.session = None
+        self._instance_lock = RLock()
+
+    def _update_bindings(self, session):
+        self.session = session
+
+    def _clear_bindings(self):
+        self.session.expunge_all()
+        self.session = None
+
+    @contextlib.contextmanager
+    def bind(self, session):
+        with self._instance_lock:
+            self._update_bindings(session)
+            yield
+            self._clear_bindings()

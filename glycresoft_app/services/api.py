@@ -1,7 +1,7 @@
 from flask import g, jsonify, current_app, request
 
 
-from glycresoft_app.utils import json_serializer
+# from glycresoft_app.utils import json_serializer
 from glycan_profiling.serialize import IdentifiedGlycopeptide
 from glycan_profiling.plotting import colors
 from glycan_profiling.chromatogram_tree import mass_shift

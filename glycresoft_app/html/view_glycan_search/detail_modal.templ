@@ -26,10 +26,10 @@
         </div>
         <div class='col s4'>
             <b>Charge States</b>: {{chromatogram.charge_states | join(", ")}} <br/>
-            <b>Chromatogram Score</b>: {{chromatogram.score}} | {{"%0.4g" % logitscore}} <br/>
+            <b>Chromatogram Score</b>: {{"%0.4g" % chromatogram.score}} | {{"%0.4g" % logitscore}} <br/>
             <ul style='margin-top: 1px;'>
                 {% for facet_score, value in chromatogram.score_components().items() %}
-                    <li>{{facet_score.replace("_", " ").title()}}: {{"%0.4g" % value}} </li>
+                    <li>{{facet_score.replace("_", " ").title()}}: {{"%0.4g" % value}} | {{"%0.4g" % value | logit}} </li>
                 {% endfor %}
             </ul>
             {% if chromatogram.ambiguous_with|length > 0%}

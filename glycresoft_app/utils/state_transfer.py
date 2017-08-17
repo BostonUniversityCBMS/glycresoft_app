@@ -82,7 +82,7 @@ def literal_typecast(s):
         return literal_typecast_dict(s)
     try:
         return float(s)
-    except ValueError:
+    except (ValueError, TypeError):
         return str(s)
 
 

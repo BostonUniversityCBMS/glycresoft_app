@@ -1,7 +1,6 @@
 import os
 
 from glycresoft_app.project import sample
-from glycresoft_app.utils import json_serializer
 from .task_process import Task, Message
 
 
@@ -126,7 +125,7 @@ def preprocess(mzml_file, database_connection, averagine=None, start_time=None, 
         sample_run_data = consumer.sample_run
         logger.info("Updating New Sample Run")
         reader = ProcessedMzMLDeserializer(storage_path, use_index=False)
-        reader.read_index()
+        reader.read_index_file()
         if reader.extended_index.msn_ids:
             sample_type = "MS/MS Sample"
         else:

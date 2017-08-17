@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 from flask import Response, g, request, render_template, jsonify
 
-from .collection_view import CollectionViewBase, ViewCache
+from .collection_view import CollectionViewBase, ViewCache, SnapshotBase
 from .service_module import register_service
 
 from threading import RLock
@@ -62,8 +62,9 @@ app = view_glycopeptide_lcmsms_analysis = register_service("view_glycopeptide_lc
 VIEW_CACHE = ViewCache()
 
 
-class GlycopeptideSnapShot(object):
+class GlycopeptideSnapShot(SnapshotBase):
     def __init__(self, protein_id, score_threshold, glycan_filters, members):
+        SnapshotBase.__init__(self)
         self.protein_id = protein_id
         self.score_threshold = score_threshold
         self.glycan_filters = glycan_filters
@@ -71,6 +72,11 @@ class GlycopeptideSnapShot(object):
         self.member_id_map = {m.id: m for m in members}
         self.figure_axes = {}
         self._glycoprotein = None
+
+    def _update_bindings(self, session):
+        super(GlycopeptideSnapShot, self)._update_bindings(session)
+        for obj in self.members:
+            session.add(obj)
 
     def get_glycoprotein(self, session):
         if self._glycoprotein is None:
@@ -307,7 +313,7 @@ class GlycopeptideAnalysisView(CollectionViewBase):
                 keepers.append(gp)
 
         log_handle.log("Converting Kept Glycopeptides")
-        keepers = [self.convert_glycopeptide(gp) for gp in keepers]
+        # keepers = [self.convert_glycopeptide(gp) for gp in keepers]
 
         log_handle.log("Snapshot Complete")
         snapshot = GlycopeptideSnapShot(protein_id, self.score_threshold, self.monosaccharide_bounds, keepers)
@@ -372,9 +378,12 @@ def page(analysis_uuid, protein_id, page):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display(protein_id)
-        paginator = snapshot.paginate(page, 25)
-        return render_template(
-            "view_glycopeptide_search/components/glycopeptide_match_table.templ", paginator=paginator)
+        with snapshot.bind(view.session):
+            paginator = snapshot.paginate(page, 25)
+            # import IPython
+            # IPython.embed()
+            return render_template(
+                "view_glycopeptide_search/components/glycopeptide_match_table.templ", paginator=paginator)
 
 
 @app.route("/view_glycopeptide_lcmsms_analysis/<analysis_uuid>/<int:protein_id>/plot_glycoforms", methods=['POST'])
@@ -382,8 +391,9 @@ def plot_glycoforms(analysis_uuid, protein_id):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display(protein_id)
-        svg = snapshot.plot_glycoforms(view.session)
-        return svg
+        with snapshot.bind(view.session):
+            svg = snapshot.plot_glycoforms(view.session)
+            return svg
 
 
 @app.route("/view_glycopeptide_lcmsms_analysis/<analysis_uuid>/<int:protein_id>/site_specific_glycosylation",
@@ -392,11 +402,12 @@ def site_specific_glycosylation(analysis_uuid, protein_id):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display(protein_id)
-        axes_map = snapshot.site_specific_glycosylation(view.session)
-        glycoprotein = snapshot.get_glycoprotein(view.session)
-        return render_template(
-            "/view_glycopeptide_search/components/site_specific_glycosylation.templ",
-            axes_map=axes_map, glycoprotein=glycoprotein)
+        with snapshot.bind(view.session):
+            axes_map = snapshot.site_specific_glycosylation(view.session)
+            glycoprotein = snapshot.get_glycoprotein(view.session)
+            return render_template(
+                "/view_glycopeptide_search/components/site_specific_glycosylation.templ",
+                axes_map=axes_map, glycoprotein=glycoprotein)
 
 
 @app.route("/view_glycopeptide_lcmsms_analysis/<analysis_uuid>/search_by_scan/<scan_id>")
@@ -430,106 +441,109 @@ def glycopeptide_detail(analysis_uuid, protein_id, glycopeptide_id, scan_id=None
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display(protein_id)
-        session = view.session
-        try:
-            gp = snapshot[glycopeptide_id]
-        except KeyError:
+        with snapshot.bind(view.session):
+            session = view.session
+            # try:
+            #     gp = snapshot[glycopeptide_id]
+            # except KeyError:
+            #     gp = view.get_glycopeptide(glycopeptide_id)
             gp = view.get_glycopeptide(glycopeptide_id)
 
-        matched_scans = []
+            matched_scans = []
 
-        for solution_set in gp.spectrum_matches:
+            for solution_set in gp.spectrum_matches:
 
-            best_solution = solution_set.best_solution()
-            try:
-                selected_solution = solution_set.solution_for(gp.structure)
-            except KeyError:
-                continue
-            pass_threshold = abs(selected_solution.score - best_solution.score) < 1e-6
+                best_solution = solution_set.best_solution()
+                try:
+                    selected_solution = solution_set.solution_for(gp.structure)
+                except KeyError:
+                    continue
+                pass_threshold = abs(selected_solution.score - best_solution.score) < 1e-6
 
-            if not pass_threshold:
-                continue
+                if not pass_threshold:
+                    continue
 
-            if isinstance(selected_solution.scan, SpectrumReference):
-                scan = session.query(MSScan).filter(
-                    MSScan.scan_id == selected_solution.scan.id,
-                    MSScan.sample_run_id == view.analysis.sample_run_id).first().convert()
+                if isinstance(selected_solution.scan, SpectrumReference):
+                    scan = session.query(MSScan).filter(
+                        MSScan.scan_id == selected_solution.scan.id,
+                        MSScan.sample_run_id == view.analysis.sample_run_id).first().convert()
+                else:
+                    scan = selected_solution.scan
+                scan.score = selected_solution.score
+                matched_scans.append(scan)
+
+            if scan_id is None:
+                spectrum_match_ref = max(gp.spectrum_matches, key=lambda x: x.score)
+                scan_id = spectrum_match_ref.scan.id
+            scan = view.peak_loader.get_scan_by_id(scan_id)
+
+            match = CoverageWeightedBinomialScorer.evaluate(
+                scan, gp.structure,
+                error_tolerance=view.analysis.parameters["fragment_error_tolerance"])
+
+            max_peak = max([p.intensity for p in match.spectrum])
+            ax = figax()
+            if gp.chromatogram:
+                art = SmoothingChromatogramArtist([gp], ax=ax, colorizer=lambda *a, **k: 'green').draw(
+                    label_function=lambda *a, **k: "", legend=False)
+                lo, hi = ax.get_xlim()
+                lo -= 0.5
+                hi += 0.5
+                art._interpolate_xticks(lo, hi)
+                # ax.set_xlim(lo, hi)
+                ax.set_xlabel(ax.get_xlabel(), fontsize=16)
+                yl = ax.get_ylabel()
+                ax.set_ylabel(yl, fontsize=16)
+
+                labels = [tl for tl in ax.get_xticklabels()]
+                for label in labels:
+                    label.set(fontsize=12)
+                for label in ax.get_yticklabels():
+                    label.set(fontsize=12)
             else:
-                scan = selected_solution.scan
-            scan.score = selected_solution.score
-            matched_scans.append(scan)
+                ax.text(0.5, 0.5, "No Chromatogram Extracted", ha='center')
+                ax.set_axis_off()
 
-        if scan_id is None:
-            spectrum_match_ref = max(gp.spectrum_matches, key=lambda x: x.score)
-            scan_id = spectrum_match_ref.scan.id
-        scan = view.peak_loader.get_scan_by_id(scan_id)
+            specmatch_artist = SpectrumMatchAnnotator(match, ax=figax())
+            specmatch_artist.draw(fontsize=10, pretty=True)
+            annotated_match_ax = specmatch_artist.ax
 
-        match = CoverageWeightedBinomialScorer.evaluate(
-            scan, gp.structure,
-            error_tolerance=view.analysis.parameters["fragment_error_tolerance"])
+            annotated_match_ax.set_title("%s\n" % (scan.id,), fontsize=18)
+            annotated_match_ax.set_ylabel(annotated_match_ax.get_ylabel(), fontsize=16)
+            annotated_match_ax.set_xlabel(annotated_match_ax.get_xlabel(), fontsize=16)
 
-        max_peak = max([p.intensity for p in match.spectrum])
-        ax = figax()
-        if gp.chromatogram:
-            SmoothingChromatogramArtist([gp], ax=ax, colorizer=lambda *a, **k: 'green').draw(
-                label_function=lambda *a, **k: "", legend=False)
-            lo, hi = ax.get_xlim()
-            lo -= 0.5
-            hi += 0.5
-            yl = ax.get_ylabel()
-            ax.set_ylabel(yl, fontsize=16)
-            ax.set_xlabel(ax.get_xlabel(), fontsize=16)
-            ax.set_xlim(lo, hi)
-            ax.get_xaxis().get_major_formatter().set_useOffset(False)
-            labels = [tl for tl in ax.get_xticklabels()]
-            for label in labels:
-                label.set(fontsize=12)
-            for label in ax.get_yticklabels():
-                label.set(fontsize=12)
-        else:
-            ax.text(0.5, 0.5, "No Chromatogram Extracted", ha='center')
-            ax.set_axis_off()
+            sequence_logo_plot = glycopeptide_match_logo(match, ax=figax())
+            xlim = list(sequence_logo_plot.get_xlim())
+            xlim[0] += 1
 
-        specmatch_artist = SpectrumMatchAnnotator(match, ax=figax())
-        specmatch_artist.draw(fontsize=10, pretty=True)
-        annotated_match_ax = specmatch_artist.ax
+            sequence_logo_plot.set_xlim(xlim[0], xlim[1])
 
-        annotated_match_ax.set_title("%s\n" % (scan.id,), fontsize=18)
-        annotated_match_ax.set_ylabel(annotated_match_ax.get_ylabel(), fontsize=16)
-        annotated_match_ax.set_xlabel(annotated_match_ax.get_xlabel(), fontsize=16)
+            def xml_transform(root):
+                view_box_str = root.attrib["viewBox"]
+                x_start, y_start, x_end, y_end = map(float, view_box_str.split(" "))
+                x_start += 25
+                updated_view_box_str = " ".join(map(str, [x_start, y_start, x_end, y_end]))
+                root.attrib["viewBox"] = updated_view_box_str
+                fig_g = root.find(".//{http://www.w3.org/2000/svg}g[@id=\"figure_1\"]")
+                fig_g.attrib["transform"] = "scale(1.0, 1.0)"
+                return root
 
-        sequence_logo_plot = glycopeptide_match_logo(match, ax=figax())
-        xlim = list(sequence_logo_plot.get_xlim())
-        xlim[0] += 1
+            print("\nEnd Glycopeptide Detail View\n\n")
 
-        sequence_logo_plot.set_xlim(xlim[0], xlim[1])
-
-        def xml_transform(root):
-            view_box_str = root.attrib["viewBox"]
-            x_start, y_start, x_end, y_end = map(float, view_box_str.split(" "))
-            x_start += 25
-            updated_view_box_str = " ".join(map(str, [x_start, y_start, x_end, y_end]))
-            root.attrib["viewBox"] = updated_view_box_str
-            fig_g = root.find(".//{http://www.w3.org/2000/svg}g[@id=\"figure_1\"]")
-            fig_g.attrib["transform"] = "scale(1.0, 1.0)"
-            return root
-
-        print("\nEnd Glycopeptide Detail View\n\n")
-
-        return render_template(
-            "/view_glycopeptide_search/components/glycopeptide_detail.templ",
-            glycopeptide=gp,
-            match=match,
-            chromatogram_plot=report.svg_plot(
-                ax, svg_width="100%", bbox_inches='tight', height=4, width=10, patchless=True),
-            spectrum_plot=report.svg_plot(
-                annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3, width=10, patchless=True),
-            sequence_logo_plot=report.svg_plot(
-                sequence_logo_plot, svg_width="100%", xml_transform=xml_transform, bbox_inches='tight',
-                height=3, width=7, patchless=True),
-            matched_scans=matched_scans,
-            max_peak=max_peak,
-        )
+            return render_template(
+                "/view_glycopeptide_search/components/glycopeptide_detail.templ",
+                glycopeptide=gp,
+                match=match,
+                chromatogram_plot=report.svg_plot(
+                    ax, svg_width="100%", bbox_inches='tight', height=4, width=10, patchless=True),
+                spectrum_plot=report.svg_plot(
+                    annotated_match_ax, svg_width="100%", bbox_inches='tight', height=3, width=10, patchless=True),
+                sequence_logo_plot=report.svg_plot(
+                    sequence_logo_plot, svg_width="100%", xml_transform=xml_transform, bbox_inches='tight',
+                    height=3, width=7, patchless=True),
+                matched_scans=matched_scans,
+                max_peak=max_peak,
+            )
 
 
 def _export_csv(analysis_uuid):
@@ -541,12 +555,18 @@ def _export_csv(analysis_uuid):
         file_name = "%s-glycopeptides.csv" % (view.analysis.name)
         path = g.manager.get_temp_path(file_name)
 
-        gen = (
-            gp for protein_id in protein_name_resolver for gp in
-            view.get_items_for_display(protein_id).members)
+        def generate_entities():
+            for protein_id in protein_name_resolver:
+                snapshot = view.get_items_for_display(protein_id)
+                with snapshot.bind(view.session):
+                    for gp in snapshot.members:
+                        yield gp
+        # gen = (
+        #     gp for protein_id in protein_name_resolver for gp in
+        #     view.get_items_for_display(protein_id).members)
 
         GlycopeptideLCMSMSAnalysisCSVSerializer(
-            open(path, 'wb'), gen,
+            open(path, 'wb'), generate_entities(),
             protein_name_resolver).start()
     return [file_name]
 

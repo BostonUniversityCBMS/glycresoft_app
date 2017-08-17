@@ -1656,14 +1656,14 @@ samplePreprocessingPresets = [
     max_charge: 9,
     ms1_score_threshold: 35,
     ms1_averagine: "glycan",
-    max_missing_peaks: 1,
+    max_missing_peaks: 3,
     msn_score_threshold: 10,
     msn_averagine: 'glycan',
     fit_only_msn: false
   }, {
     name: "LC-MS/MS Glycoproteomics",
     max_charge: 12,
-    max_missing_peaks: 1,
+    max_missing_peaks: 3,
     ms1_score_threshold: 35,
     ms1_averagine: "glycopeptide",
     msn_score_threshold: 10,
@@ -1720,72 +1720,6 @@ makePresetSelector = function(container) {
 };
 
 //# sourceMappingURL=sample-preprocessing-configurations.js.map
-
-var composeSampleAnalysisTree;
-
-composeSampleAnalysisTree = function(bundle) {
-  var analyses, analysis, analysisList, entry, id, name, sampleMap, sampleName, samples, trees;
-  samples = bundle.samples;
-  analyses = bundle.analyses;
-  sampleMap = {};
-  for (id in analyses) {
-    analysis = analyses[id];
-    sampleName = analysis.sample_name;
-    if (sampleMap[sampleName] == null) {
-      sampleMap[sampleName] = [];
-    }
-    sampleMap[sampleName].push(analysis);
-  }
-  trees = [];
-  for (name in sampleMap) {
-    analysisList = sampleMap[name];
-    entry = {
-      "sample": samples[name],
-      "analyses": analysisList
-    };
-    trees.push(entry);
-  }
-  return trees;
-};
-
-Application.prototype.renderSampleTree = function(container) {
-  var analyses, analysis, analysisChunk, analysisChunks, cleanNamePattern, entry, expander, i, j, len, len1, prefix, rendered, sample, suffix, tree, trees;
-  container = $(container);
-  trees = composeSampleAnalysisTree(this);
-  rendered = [];
-  cleanNamePattern = /_/g;
-  for (i = 0, len = trees.length; i < len; i++) {
-    tree = trees[i];
-    sample = tree.sample;
-    analyses = tree.analyses;
-    analysisChunks = [];
-    if (analyses.length > 0) {
-      expander = "<span class=\"expanded-display-control indigo-text\">\n    <i class=\"material-icons\">check_box_outline_blank</i>\n</span>";
-    } else {
-      expander = "";
-    }
-    prefix = "<div class='project-entry'>\n    <div class=\"project-item\" data-uuid='" + sample.uuid + "'>\n        <span class='project-sample-name'>\n            " + expander + "\n            " + (sample.name.replace(cleanNamePattern, " ")) + "\n        </span>\n        <div class=\"analysis-entry-list\">";
-    for (j = 0, len1 = analyses.length; j < len1; j++) {
-      analysis = analyses[j];
-      analysisChunk = "<div class='analysis-entry-item' data-uuid='" + analysis.uuid + "'>\n    <span class='project-analysis-name'>\n        " + (analysis.name.replace(" at " + sample.name, "").replace(cleanNamePattern, " ")) + "\n    </span>\n</div>";
-      analysisChunks.push(analysisChunk);
-    }
-    suffix = "        </div>\n    </div>\n</div>";
-    entry = [prefix, analysisChunks.join("\n"), suffix].join("\n");
-    rendered.push(entry);
-  }
-  return container.append(rendered);
-};
-
-Application.initializers.push(function() {
-  return this.on("render-samples", (function(_this) {
-    return function() {
-      return _this.renderSampleTree(".projects-entry-list");
-    };
-  })(this));
-});
-
-//# sourceMappingURL=sample-tree-layout.js.map
 
 (function() {
   var TreeViewStateCode, composeSampleAnalysisTree, findProjectEntry, toggleProjectTreeOpenCloseState;

@@ -30,14 +30,6 @@
             </div>
         </div>
         <div class='row'>
-            {# <div class='input-field col s2'>
-                <label for='minimum-mass'>Minimum Mass</label>
-                <input class='numeric-entry' type='number' value='1300' id='minimum-mass' name='minimum-mass'>
-            </div>
-            <div class='input-field col s2'>
-                <label for='maximum-mass'>Maximum Mass</label>
-                <input class='numeric-entry' type='number' value='15000' id='maximum-mass' name='maximum-mass'>
-            </div> #}
             <div class='input-field col s2'>
                 <label for='q-value-threshold'><code>q</code>-Value Threshold</label>
                 <input class='numeric-entry' type='number' value='0.05' id='q-value-threshold'
@@ -47,6 +39,13 @@
                 <label for='q-value-threshold'>Minimum Oxonium Threhsold</label>
                 <input class='numeric-entry' type='number' value='0.05' id='minimum-oxonium-threshold'
                        name='minimum-oxonium-threshold' step='0.01'>
+            </div>
+        </div>
+        <div class='row'>
+            <div class='input-field col s2'>
+                <label for='batch-size'>Spectrum Batch Size</label>
+                <input class='numeric-entry' type='number' value='250' id='batch-size'
+                       name='batch-size' min="1">
             </div>
         </div>
         <button class='btn'>Submit</button>

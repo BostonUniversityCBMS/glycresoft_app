@@ -8,8 +8,10 @@
         <div class='col s4'>
             <b>Mass Accuracy:</b> {{analysis.parameters.mass_error_tolerance * (10 ** 6)}} PPM<br>
             <b>Grouping Tolerance:</b> {{analysis.parameters.grouping_error_tolerance * (10 ** 6)}} PPM<br>
-            <b>Network Parameter:</b> {{analysis.parameters.network_sharing}}<br>
             <b>Adducts:</b> {{analysis.parameters.adducts|join(", ")}}<br>
+            {% if analysis.parameters.get("network_parameters") is not none %}
+                <b>Network &lambda;:</b> {{"%0.3g" % analysis.parameters.network_parameters.lmbda}}<br>
+            {% endif %}
         </div>
         <div class='col s4'>
             <b>Target Database:</b>
@@ -56,7 +58,7 @@
 </div>
 <script>
     var controller = new GlycanCompositionLCMSSearchController(
-            "{{analysis.uuid}}", "{{analysis.hypothesis.uuid}}",
+            "{{analysis.uuid}}", "{{analysis.hypothesis.parameters.original_uuid}}",
             {{analysis.hypothesis.monosaccharide_bounds()}});
     materialRefresh()
 </script>

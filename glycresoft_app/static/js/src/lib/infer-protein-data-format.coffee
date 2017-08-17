@@ -4,7 +4,7 @@ identifyProteomicsFormat = (file, callback) ->
         hit = false
         tag = []
         for line in lines
-            if /mzIdentML/.test line
+            if /mzIdentML/i.test line
                 hit = true
                 break
             i += 1

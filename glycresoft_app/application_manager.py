@@ -9,6 +9,9 @@ from glycan_profiling.serialize import (
     DatabaseBoundOperation, SampleRun, GlycanHypothesis,
     GlycopeptideHypothesis, Analysis, AnalysisTypeEnum)
 
+
+from glycan_profiling.task import log_handle
+
 from glycresoft_app.task.task_process import TaskManager
 from glycresoft_app.vendor import sqlitedict
 from glycresoft_app.config import get as config_from_path
@@ -217,6 +220,7 @@ class ApplicationManager(object):
         }
 
     def add_task(self, task):
+        log_handle.log("Received Task %r (%s, %r)" % (task, task.name, task.id))
         context = self.make_task_context(task.name)
         task.update_control_context(context)
         self.task_manager.add_task(task)

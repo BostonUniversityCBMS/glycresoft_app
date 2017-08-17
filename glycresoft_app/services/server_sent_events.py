@@ -11,6 +11,9 @@ from .service_module import register_service
 server_sent_events = register_service("server_sent_events", __name__)
 
 
+logger = logging.getLogger("glycresoft.message_queue")
+
+
 def message_queue_stream(manager, user):
     """Implement a simple Server Side Event (SSE) stream based on the
     stream of events emit from the :attr:`TaskManager.messages` queue of `manager`.
@@ -48,13 +51,13 @@ def message_queue_stream(manager, user):
                 yield event
             except KeyboardInterrupt:
                 break
-            except QueueEmptyException, e:
+            except QueueEmptyException as e:
                 # Send a comment to keep the connection alive
                 if random.random() > 0.4:
                     yield payload.format(id=i, event_name='tick', data=json.dumps('Tick'))
-            except Exception, e:
-                logging.exception(
-                    "An error occurred in message_queue_stream", exc_info=e)
+            except Exception as e:
+                logger.exception(
+                    "An error occurred in message_queue_stream", exc_info=True)
     finally:
         try:
             queue.close()

@@ -63,6 +63,15 @@ code, pre {
 }
 
 
+.monosaccharide-composition-name {
+    padding: 2px;
+    border-radius: 2px;
+    word-break: keep-all;
+    display: inline-block;
+    margin-top: 3px;
+}
+
+
 /*
 
 Form Elements

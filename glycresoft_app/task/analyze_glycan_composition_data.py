@@ -37,14 +37,11 @@ def get_by_name_or_id(session, model_type, name_or_id):
 
 def analyze_glycan_composition(database_connection, sample_path, hypothesis_identifier,
                                output_path, analysis_name, adducts, grouping_error_tolerance=1.5e-5,
-                               mass_error_tolerance=1e-5, scoring_model=None, network_sharing=None,
+                               mass_error_tolerance=1e-5, scoring_model=None,
                                minimum_mass=500.,
                                channel=None, **kwargs):
     if scoring_model is None:
         scoring_model = GeneralScorer
-
-    if network_sharing is None:
-        network_sharing = 0.2
 
     database_connection = DatabaseBoundOperation(database_connection)
 
@@ -82,10 +79,13 @@ def analyze_glycan_composition(database_connection, sample_path, hypothesis_iden
     try:
         analyzer = MzMLGlycanChromatogramAnalyzer(
             database_connection._original_connection, hypothesis.id,
-            sample_path=sample_path, output_path=output_path, adducts=adducts,
+            sample_path=sample_path,
+            output_path=output_path,
+            adducts=adducts,
             mass_error_tolerance=mass_error_tolerance,
-            grouping_error_tolerance=grouping_error_tolerance, scoring_model=scoring_model,
-            analysis_name=analysis_name, network_sharing=network_sharing,
+            grouping_error_tolerance=grouping_error_tolerance,
+            scoring_model=scoring_model,
+            analysis_name=analysis_name,
             minimum_mass=minimum_mass)
         analyzer.start()
         analysis = analyzer.analysis
@@ -97,7 +97,7 @@ def analyze_glycan_composition(database_connection, sample_path, hypothesis_iden
             sample_name=analysis.parameters['sample_name'],
             user_id=channel.user.id)
         channel.send(Message(record.to_json(), 'new-analysis'))
-    except:
+    except Exception:
         channel.send(Message.traceback())
         channel.abort("An error occurred during analysis.")
 
@@ -107,12 +107,12 @@ class AnalyzeGlycanCompositionTask(Task):
 
     def __init__(self, database_connection, sample_path, hypothesis_identifier,
                  output_path, analysis_name, adducts, grouping_error_tolerance=1.5e-5,
-                 mass_error_tolerance=1e-5, scoring_model=None, network_sharing=None,
+                 mass_error_tolerance=1e-5, scoring_model=None,
                  minimum_mass=500.,
                  callback=lambda: 0, **kwargs):
         args = (database_connection, sample_path, hypothesis_identifier,
                 output_path, analysis_name, adducts, grouping_error_tolerance,
-                mass_error_tolerance, scoring_model, network_sharing,
+                mass_error_tolerance, scoring_model,
                 minimum_mass)
         if analysis_name is None:
             name_part = kwargs.pop("job_name_part", self.count)

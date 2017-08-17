@@ -6,8 +6,8 @@ app_config = register_service("preferences", __name__)
 
 
 default_preferences = {
-    "minimum_ms2_score": 20.,
-    "minimum_ms1_score": 0.6,
+    "minimum_ms2_score": 5.,
+    "minimum_ms1_score": 3.,
     "color_palette": "NGlycanCompositionColorizer"
 }
 

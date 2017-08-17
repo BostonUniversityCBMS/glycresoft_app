@@ -582,7 +582,7 @@ identifyProteomicsFormat = function(file, callback) {
     tag = [];
     for (j = 0, len = lines.length; j < len; j++) {
       line = lines[j];
-      if (/mzIdentML/.test(line)) {
+      if (/mzIdentML/i.test(line)) {
         hit = true;
         break;
       }

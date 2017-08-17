@@ -1,6 +1,6 @@
 from flask import g, request, render_template, jsonify
 from .service_module import register_service
-from .collection_view import CollectionViewBase, ViewCache
+from .collection_view import CollectionViewBase, ViewCache, SnapshotBase
 
 from threading import RLock
 from glycresoft_app.utils.state_transfer import request_arguments_and_context, FilterSpecificationSet
@@ -45,10 +45,11 @@ app = view_glycan_lcms_analysis = register_service("view_glycan_lcms_analysis", 
 VIEW_CACHE = ViewCache()
 
 
-class GlycanChromatographySnapShot(object):
+class GlycanChromatographySnapShot(SnapshotBase):
     def __init__(self, score_threshold, glycan_filters, glycan_chromatograms,
                  unidentified_chromatograms, start_time=0, end_time=float('inf'),
                  omit_used_as_adduct=False):
+        SnapshotBase.__init__(self)
         self.score_threshold = score_threshold
         self.glycan_filters = glycan_filters
         self.start_time = start_time
@@ -77,6 +78,15 @@ class GlycanChromatographySnapShot(object):
         self.unidentified_id_map = {
             x.id: x for x in self.unidentified_chromatograms
         }
+
+
+    def _update_bindings(self, session):
+        super(GlycanChromatographySnapShot, self)._update_bindings(session)
+        for c in self.member_id_map.values():
+            session.add(c)
+
+        for c in self.unidentified_id_map.values():
+            session.add(c)
 
     def is_valid(self, score_threshold, glycan_filters, start_time=0, end_time=float('inf'),
                  omit_used_as_adduct=False):
@@ -138,12 +148,14 @@ class GlycanChromatographyAnalysisView(CollectionViewBase):
         CollectionViewBase.__init__(self, storage_record)
         self.analysis_id = analysis_id
 
+        # Filters (Should be Analysis specific, but are global in request state)
         self.start_time = 0
         self.end_time = float("inf")
         self.omit_used_as_adduct = False
         self.glycan_composition_filter = None
         self.monosaccharide_bounds = FilterSpecificationSet()
         self.score_threshold = 0.4
+
         self.analysis = None
         self.hypothesis = None
         self.neighborhoods = make_n_glycan_neighborhoods()
@@ -182,13 +194,19 @@ class GlycanChromatographyAnalysisView(CollectionViewBase):
 
         inclusion_filter = self._get_valid_glycan_compositions()
 
-        return [self.convert_glycan_chromatogram(c) for c in chroma if c.glycan_composition_id in inclusion_filter]
+        return [
+            # self.convert_glycan_chromatogram(c)
+            c
+            for c in chroma if c.glycan_composition_id in inclusion_filter]
 
     def _get_unidentified_chromatograms(self):
         chroma = self.session.query(UnidentifiedChromatogram).filter(
             UnidentifiedChromatogram.analysis_id == self.analysis_id,
             UnidentifiedChromatogram.score > self.score_threshold).all()
-        return [c.convert() for c in chroma]
+        return [
+            # c.convert()
+            c
+            for c in chroma]
 
     def _build_snapshot(self):
         snapshot = GlycanChromatographySnapShot(
@@ -263,27 +281,32 @@ def chromatograms_chart(analysis_uuid):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display()
-        return report.svg_plot(snapshot.chromatograms_chart().ax, bbox_inches='tight')
+        with snapshot.bind(view.session):
+            return report.svguri_plot(snapshot.chromatograms_chart().ax, bbox_inches='tight')
 
 
 @app.route("/view_glycan_lcms_analysis/<analysis_uuid>/page/<int:page>", methods=['POST'])
 def page(analysis_uuid, page):
     view = get_view(analysis_uuid)
     with view:
-        paginator = view.paginate(page, per_page=25)
-        return render_template("/view_glycan_search/table.templ", paginator=paginator,
-                               table_class="glycan-chromatogram-table",
-                               row_class="glycan-match-row")
+        snapshot = view.get_items_for_display()
+        with snapshot.bind(view.session):
+            paginator = snapshot.paginate(page, per_page=25)
+            return render_template("/view_glycan_search/table.templ", paginator=paginator,
+                                   table_class="glycan-chromatogram-table",
+                                   row_class="glycan-match-row")
 
 
 @app.route("/view_glycan_lcms_analysis/<analysis_uuid>/page_unidentified/<int:page>", methods=['POST'])
 def page_unidentified(analysis_uuid, page):
     view = get_view(analysis_uuid)
     with view:
-        paginator = view.paginate_unidentified(page, per_page=25)
-        return render_template("/view_glycan_search/table.templ", paginator=paginator,
-                               table_class='unidentified-chromatogram-table',
-                               row_class="unidentified-row")
+        snapshot = view.get_items_for_display()
+        with snapshot.bind(view.session):
+            paginator = snapshot.paginate_unidentified(page, per_page=25)
+            return render_template("/view_glycan_search/table.templ", paginator=paginator,
+                                   table_class='unidentified-chromatogram-table',
+                                   row_class="unidentified-row")
 
 
 @app.route("/view_glycan_lcms_analysis/<analysis_uuid>/abundance_bar_chart")
@@ -291,8 +314,9 @@ def abundance_bar_chart(analysis_uuid):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display()
-        return report.svg_plot(snapshot.abundance_bar_chart().ax, bbox_inches='tight',
-                               width=12, height=6)
+        with snapshot.bind(view.session):
+            return report.svguri_plot(snapshot.abundance_bar_chart().ax, bbox_inches='tight',
+                                   width=12, height=6)
 
 
 @app.route("/view_glycan_lcms_analysis/<analysis_uuid>/details_for/<int:chromatogram_id>")
@@ -300,52 +324,53 @@ def details_for(analysis_uuid, chromatogram_id):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display()
-        chroma = snapshot[chromatogram_id]
-        plot = SmoothingChromatogramArtist(
-            [chroma], colorizer=lambda *a, **k: 'green', ax=figax()).draw(
-            label_function=lambda *a, **k: "", legend=False).ax
-        plot.set_title("Aggregated\nExtracted Ion Chromatogram", fontsize=24)
-        chroma_svg = report.svg_plot(
-            plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
+        with snapshot.bind(view.session):
+            chroma = snapshot[chromatogram_id].convert()
+            plot = SmoothingChromatogramArtist(
+                [chroma], colorizer=lambda *a, **k: 'green', ax=figax()).draw(
+                label_function=lambda *a, **k: "", legend=False).ax
+            plot.set_title("Aggregated\nExtracted Ion Chromatogram", fontsize=24)
+            chroma_svg = report.svguri_plot(
+                plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
 
-        glycan_composition = normalize_composition(chroma.glycan_composition)
+            glycan_composition = normalize_composition(chroma.glycan_composition)
 
-        membership = [neigh.name for neigh in view.neighborhoods if neigh(glycan_composition)]
+            membership = [neigh.name for neigh in view.neighborhoods if neigh(glycan_composition)]
 
-        adduct_separation = ""
-        if len(chroma.adducts) > 1:
-            adducts = list(chroma.adducts)
-            labels = {}
-            rest = chroma
-            for adduct in adducts:
-                with_adduct, rest = rest.bisect_adduct(adduct)
-                labels[adduct] = with_adduct
-            adduct_plot = SmoothingChromatogramArtist(
-                labels.values(),
-                colorizer=lambda *a, **k: 'green', ax=figax()).draw(
-                label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
-                legend=False).ax
-            adduct_plot.set_title(
-                "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
-            adduct_separation = report.svg_plot(
-                adduct_plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
+            adduct_separation = ""
+            if len(chroma.adducts) > 1:
+                adducts = list(chroma.adducts)
+                labels = {}
+                rest = chroma
+                for adduct in adducts:
+                    with_adduct, rest = rest.bisect_adduct(adduct)
+                    labels[adduct] = with_adduct
+                adduct_plot = SmoothingChromatogramArtist(
+                    labels.values(),
+                    colorizer=lambda *a, **k: 'green', ax=figax()).draw(
+                    label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
+                    legend=False).ax
+                adduct_plot.set_title(
+                    "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
+                adduct_separation = report.svguri_plot(
+                    adduct_plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
 
-        charge_separation = ""
-        if len(chroma.charge_states) > 1:
-            charge_separating_plot = ChargeSeparatingSmoothingChromatogramArtist(
-                [chroma], ax=figax()).draw(
-                label_function=lambda x, *a, **kw: str(tuple(x.charge_states)[0]), legend=False).ax
-            charge_separating_plot.set_title("Charge-Separated\nExtracted Ion Chromatogram", fontsize=24)
-            charge_separation = report.svg_plot(
-                charge_separating_plot, bbox_inches='tight', height=5, width=9,
-                svg_width="100%")
+            charge_separation = ""
+            if len(chroma.charge_states) > 1:
+                charge_separating_plot = ChargeSeparatingSmoothingChromatogramArtist(
+                    [chroma], ax=figax()).draw(
+                    label_function=lambda x, *a, **kw: str(tuple(x.charge_states)[0]), legend=False).ax
+                charge_separating_plot.set_title("Charge-Separated\nExtracted Ion Chromatogram", fontsize=24)
+                charge_separation = report.svguri_plot(
+                    charge_separating_plot, bbox_inches='tight', height=5, width=9,
+                    svg_width="100%")
 
-        return render_template(
-            "/view_glycan_search/detail_modal.templ", chromatogram=chroma,
-            chromatogram_svg=chroma_svg, adduct_separation_svg=adduct_separation,
-            charge_chromatogram_svg=charge_separation,
-            logitscore=logitsum(chroma.score_components()),
-            membership=membership)
+            return render_template(
+                "/view_glycan_search/detail_modal.templ", chromatogram=chroma,
+                chromatogram_svg=chroma_svg, adduct_separation_svg=adduct_separation,
+                charge_chromatogram_svg=charge_separation,
+                logitscore=logitsum(chroma.score_components()),
+                membership=membership)
 
 
 @app.route("/view_glycan_lcms_analysis/<analysis_uuid>/details_for_unidentified/<int:chromatogram_id>")
@@ -353,49 +378,50 @@ def details_for_unidentified(analysis_uuid, chromatogram_id):
     view = get_view(analysis_uuid)
     with view:
         snapshot = view.get_items_for_display()
-        chroma = snapshot.unidentified_id_map[chromatogram_id]
-        plot = SmoothingChromatogramArtist(
-            [chroma], colorizer=lambda *a, **k: 'green', ax=figax()).draw(
-            label_function=lambda *a, **k: "", legend=False).ax
-        plot.set_title("Aggregated\nExtracted Ion Chromatogram", fontsize=24)
-        chroma_svg = report.svg_plot(plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
+        with snapshot.bind(view.session):
+            chroma = snapshot.unidentified_id_map[chromatogram_id].convert()
+            plot = SmoothingChromatogramArtist(
+                [chroma], colorizer=lambda *a, **k: 'green', ax=figax()).draw(
+                label_function=lambda *a, **k: "", legend=False).ax
+            plot.set_title("Aggregated\nExtracted Ion Chromatogram", fontsize=24)
+            chroma_svg = report.svguri_plot(plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
 
-        adduct_separation = ""
-        if len(chroma.adducts) > 1:
-            adducts = list(chroma.adducts)
-            labels = {}
-            rest = chroma
-            for adduct in adducts:
-                with_adduct, rest = rest.bisect_adduct(adduct)
-                labels[adduct] = with_adduct
-            adduct_plot = SmoothingChromatogramArtist(
-                labels.values(),
-                colorizer=lambda *a, **k: 'green', ax=figax()).draw(
-                label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
-                legend=False).ax
-            adduct_plot.set_title(
-                "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
-            adduct_separation = report.svg_plot(
-                adduct_plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
+            adduct_separation = ""
+            if len(chroma.adducts) > 1:
+                adducts = list(chroma.adducts)
+                labels = {}
+                rest = chroma
+                for adduct in adducts:
+                    with_adduct, rest = rest.bisect_adduct(adduct)
+                    labels[adduct] = with_adduct
+                adduct_plot = SmoothingChromatogramArtist(
+                    labels.values(),
+                    colorizer=lambda *a, **k: 'green', ax=figax()).draw(
+                    label_function=lambda *a, **k: tuple(a[0].adducts)[0].name,
+                    legend=False).ax
+                adduct_plot.set_title(
+                    "Adduct-Separated\nExtracted Ion Chromatogram", fontsize=24)
+                adduct_separation = report.svguri_plot(
+                    adduct_plot, bbox_inches='tight', height=5, width=9, svg_width="100%")
 
-        charge_separation = ""
-        if len(chroma.charge_states) > 1:
-            charge_separating_plot = ChargeSeparatingSmoothingChromatogramArtist(
-                [chroma], ax=figax()).draw(
-                legend=False,
-                label_function=lambda x, *a, **kw: str(tuple(x.charge_states)[0])).ax
-            charge_separating_plot.set_title(
-                "Charge-Separated\nExtracted Ion Chromatogram", fontsize=24)
-            charge_separation = report.svg_plot(
-                charge_separating_plot, bbox_inches='tight', height=5, width=9,
-                svg_width="100%")
+            charge_separation = ""
+            if len(chroma.charge_states) > 1:
+                charge_separating_plot = ChargeSeparatingSmoothingChromatogramArtist(
+                    [chroma], ax=figax()).draw(
+                    legend=False,
+                    label_function=lambda x, *a, **kw: str(tuple(x.charge_states)[0])).ax
+                charge_separating_plot.set_title(
+                    "Charge-Separated\nExtracted Ion Chromatogram", fontsize=24)
+                charge_separation = report.svguri_plot(
+                    charge_separating_plot, bbox_inches='tight', height=5, width=9,
+                    svg_width="100%")
 
-        return render_template(
-            "/view_glycan_search/detail_modal.templ", chromatogram=chroma,
-            chromatogram_svg=chroma_svg, adduct_separation_svg=adduct_separation,
-            charge_chromatogram_svg=charge_separation,
-            logitscore=logitsum(chroma.score_components()),
-            membership=[])
+            return render_template(
+                "/view_glycan_search/detail_modal.templ", chromatogram=chroma,
+                chromatogram_svg=chroma_svg, adduct_separation_svg=adduct_separation,
+                charge_chromatogram_svg=charge_separation,
+                logitscore=logitsum(chroma.score_components()),
+                membership=[])
 
 
 def _export_csv(analysis_uuid):
@@ -403,12 +429,19 @@ def _export_csv(analysis_uuid):
     with view:
         g.add_message(Message("Building CSV Export", "update"))
         snapshot = view.get_items_for_display()
-        file_name = "%s-glycan-chromatograms.csv" % (view.analysis.name)
-        path = g.manager.get_temp_path(file_name)
-        GlycanLCMSAnalysisCSVSerializer(
-            open(path, 'wb'),
-            list(snapshot.glycan_chromatograms) + list(snapshot.unidentified_chromatograms)
-        ).start()
+        with snapshot.bind(view.session):
+            file_name = "%s-glycan-chromatograms.csv" % (view.analysis.name)
+            path = g.manager.get_temp_path(file_name)
+            GlycanLCMSAnalysisCSVSerializer(
+                open(path, 'wb'),
+                (
+                    c.convert()
+                    for c in (
+                        list(
+                            snapshot.glycan_chromatograms) + list(
+                            snapshot.unidentified_chromatograms))
+                )
+            ).start()
     return [file_name]
 
 
@@ -417,14 +450,15 @@ def _export_hypothesis(analysis_uuid):
     with view:
         g.add_message(Message("Building CSV Export", "update"))
         snapshot = view.get_items_for_display()
-        file_name = "%s-glycan-compositions.txt" % (view.analysis.name)
-        path = g.manager.get_temp_path(file_name)
-        composition_keys = {c.composition.id: c.composition for c in snapshot.glycan_chromatograms}
-        compositions = [
-            view.session.query(GlycanComposition).get(key) for key in composition_keys
-        ]
-        with open(path, 'wb') as handle:
-            ImportableGlycanHypothesisCSVSerializer(handle, compositions).start()
+        with snapshot.bind(view.session):
+            file_name = "%s-glycan-compositions.txt" % (view.analysis.name)
+            path = g.manager.get_temp_path(file_name)
+            composition_keys = {c.composition.id: c.composition for c in snapshot.glycan_chromatograms}
+            compositions = [
+                view.session.query(GlycanComposition).get(key) for key in composition_keys
+            ]
+            with open(path, 'wb') as handle:
+                ImportableGlycanHypothesisCSVSerializer(handle, compositions).start()
     return [file_name]
 
 

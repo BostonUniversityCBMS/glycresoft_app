@@ -35,7 +35,7 @@ def analyze_glycopeptide_sequences(database_connection, sample_path, hypothesis_
                                    output_path, analysis_name, grouping_error_tolerance=1.5e-5,
                                    mass_error_tolerance=1e-5, msn_mass_error_tolerance=2e-5,
                                    psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                                   minimum_oxonium_threshold=0.05,
+                                   minimum_oxonium_threshold=0.05, workload_size=1000,
                                    channel=None, **kwargs):
     if peak_shape_scoring_model is None:
         peak_shape_scoring_model = chromatogram_solution.ChromatogramScorer(
@@ -70,7 +70,8 @@ def analyze_glycopeptide_sequences(database_connection, sample_path, hypothesis_
             msn_mass_error_tolerance=msn_mass_error_tolerance,
             psm_fdr_threshold=psm_fdr_threshold,
             peak_shape_scoring_model=peak_shape_scoring_model,
-            oxonium_threshold=minimum_oxonium_threshold)
+            oxonium_threshold=minimum_oxonium_threshold,
+            spectra_chunk_size=workload_size)
         gps, unassigned, target_hits, decoy_hits = analyzer.start()
 
         analysis = analyzer.analysis
@@ -94,12 +95,12 @@ class AnalyzeGlycopeptideSequenceTask(Task):
     def __init__(self, database_connection, sample_path, hypothesis_identifier,
                  output_path, analysis_name, grouping_error_tolerance=1.5e-5, mass_error_tolerance=1e-5,
                  msn_mass_error_tolerance=2e-5, psm_fdr_threshold=0.05, peak_shape_scoring_model=None,
-                 minimum_oxonium_threshold=0.05,
+                 minimum_oxonium_threshold=0.05, workload_size=1000,
                  callback=lambda: 0, **kwargs):
         args = (database_connection, sample_path, hypothesis_identifier,
                 output_path, analysis_name, grouping_error_tolerance, mass_error_tolerance,
                 msn_mass_error_tolerance, psm_fdr_threshold, peak_shape_scoring_model,
-                minimum_oxonium_threshold)
+                minimum_oxonium_threshold, workload_size)
         if analysis_name is None:
             name_part = kwargs.pop("job_name_part", self.count)
             self.count += 1

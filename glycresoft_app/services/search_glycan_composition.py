@@ -37,7 +37,6 @@ def run_search_post():
 
     sample_records = list(map(g.manager.sample_manager.get, data.getlist("samples")))
 
-    network_sharing = float(data.get("network-sharing-coefficient", 0.2))
     minimum_mass = float(data.get("minimum-mass", 500.))
 
     hypothesis_name = hypothesis_record.name
@@ -53,7 +52,7 @@ def run_search_post():
         task = AnalyzeGlycanCompositionTask(
             hypothesis_record.path, sample_record.path, hypothesis_record.id,
             storage_path, name_prefix, mass_shift_data, grouping_tolerance,
-            matching_tolerance, network_sharing=network_sharing,
+            matching_tolerance,
             minimum_mass=minimum_mass,
             callback=lambda: 0,
             job_name_part=job_number)

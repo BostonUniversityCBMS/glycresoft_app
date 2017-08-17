@@ -433,6 +433,7 @@ class TaskManager(object):
         task : Task
             The task to be scheduled
         """
+        logger.info("Scheduling Task %r (%s, %r)" % (task, task.name, task.id))
         self.tasks[task.id] = task
         self.task_queue.put(task)
         self.add_message(Message({

@@ -4,7 +4,7 @@ node_modules/
 __pycache__/
 *.py[cod]
 *$py.class
-
+*.sublime*
 # C extensions
 *.so
 
@@ -12,18 +12,16 @@ __pycache__/
 .Python
 env/
 build/
-develop-eggs/
 dist/
-downloads/
 eggs/
 .eggs/
-lib/
-lib64/
+# lib/
+# lib64/
 parts/
 sdist/
-var/
+# var/
 *.egg-info/
-.installed.cfg
+# .installed.cfg
 *.egg
 
 # PyInstaller
@@ -44,8 +42,8 @@ htmlcov/
 .cache
 nosetests.xml
 coverage.xml
-*,cover
-.hypothesis/
+# *,cover
+# .hypothesis/
 
 # Translations
 *.mo
